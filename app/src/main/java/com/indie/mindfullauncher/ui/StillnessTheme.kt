@@ -13,21 +13,24 @@ import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.indie.mindfullauncher.R
+import com.indie.mindfullauncher.model.AccentPreset
 import com.indie.mindfullauncher.model.FontPreset
 
-val StillnessColorScheme = darkColorScheme(
+fun stillnessColorScheme(accent: AccentPreset = AccentPreset.NIAGARA_BLUE) = darkColorScheme(
     primary = Color(0xFFF5F5F7),
     onPrimary = Color(0xFF0A0A0C),
-    secondary = Color(0xFFFFB74D),
-    onSecondary = Color(0xFF1A1200),
+    secondary = Color(accent.colorHex),
+    onSecondary = Color(0xFF0D1426),
     background = Color.Black,
     onBackground = Color(0xFFF5F5F7),
-    surface = Color(0xFF111114),
+    surface = Color(0xFF121318),
     onSurface = Color(0xFFF5F5F7),
-    surfaceVariant = Color(0xFF1C1C20),
-    onSurfaceVariant = Color(0xFF9A9AA2),
-    outline = Color(0xFF34343A)
+    surfaceVariant = Color(0xFF1D1E24),
+    onSurfaceVariant = Color(0xFFA0A2AC),
+    outline = Color(0xFF343640)
 )
+
+val StillnessColorScheme = stillnessColorScheme(AccentPreset.NIAGARA_BLUE)
 
 @OptIn(ExperimentalTextApi::class)
 val KumbhSansFamily = FontFamily(
@@ -81,23 +84,23 @@ val StillnessTypography = Typography(
     displayLarge = TextStyle(
         fontFamily = KumbhSansFamily,
         fontWeight = FontWeight.Light,
-        fontSize = 64.sp,
-        lineHeight = 68.sp,
-        letterSpacing = (-1.5).sp,
+        fontSize = 48.sp,
+        lineHeight = 54.sp,
+        letterSpacing = (-1.0).sp,
         fontFeatureSettings = "tnum"
     ),
     headlineMedium = TextStyle(
         fontFamily = KumbhSansFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 24.sp,
-        lineHeight = 32.sp,
-        letterSpacing = (-0.3).sp
+        lineHeight = 30.sp,
+        letterSpacing = (-0.2).sp
     ),
     titleLarge = TextStyle(
         fontFamily = NunitoSansFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 18.sp,
-        lineHeight = 24.sp,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
         letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
@@ -143,27 +146,27 @@ val StillnessTypography = Typography(
         fontWeight = FontWeight.SemiBold,
         fontSize = 12.sp,
         lineHeight = 16.sp,
-        letterSpacing = 0.6.sp
+        letterSpacing = 0.5.sp
     ),
     labelSmall = TextStyle(
         fontFamily = NunitoSansFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 14.sp,
-        letterSpacing = 0.4.sp
+        letterSpacing = 0.3.sp
     )
 )
 
 val SystemTypography = Typography(
     displayLarge = TextStyle(
         fontWeight = FontWeight.Light,
-        fontSize = 64.sp,
-        lineHeight = 68.sp,
-        letterSpacing = (-1.5).sp,
+        fontSize = 48.sp,
+        lineHeight = 54.sp,
+        letterSpacing = (-1.0).sp,
         fontFeatureSettings = "tnum"
     ),
-    headlineMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 32.sp),
-    titleLarge = TextStyle(fontWeight = FontWeight.Medium, fontSize = 18.sp, lineHeight = 24.sp),
+    headlineMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 30.sp),
+    titleLarge = TextStyle(fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 22.sp),
     titleMedium = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 22.sp),
     titleSmall = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 20.sp),
     bodyLarge = TextStyle(fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 22.sp),
@@ -177,10 +180,11 @@ val SystemTypography = Typography(
 @Composable
 fun StillnessTheme(
     fontPreset: FontPreset = FontPreset.NIAGARA,
+    accentPreset: AccentPreset = AccentPreset.NIAGARA_BLUE,
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = StillnessColorScheme,
+        colorScheme = stillnessColorScheme(accentPreset),
         typography = if (fontPreset == FontPreset.NIAGARA) StillnessTypography else SystemTypography,
         content = content
     )

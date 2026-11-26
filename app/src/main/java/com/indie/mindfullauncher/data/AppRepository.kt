@@ -41,7 +41,8 @@ class AppRepository(private val context: Context) {
                 if (pkg == selfPkg) return@mapNotNull null
                 val label = info.loadLabel(pm)?.toString()?.trim().orEmpty()
                 if (label.isEmpty()) return@mapNotNull null
-                AppInfo(label = label, packageName = pkg)
+                val installedAt = runCatching { pm.getPackageInfo(pkg, 0).firstInstallTime }.getOrDefault(0L)
+                AppInfo(label = label, packageName = pkg, installedAtMillis = installedAt)
             }
             .distinctBy { it.packageName }
             .sortedBy { it.label.lowercase() }

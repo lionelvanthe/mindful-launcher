@@ -1,10 +1,12 @@
 package com.indie.mindfullauncher.data
 
 import android.content.Context
+import com.indie.mindfullauncher.model.AccentPreset
 import com.indie.mindfullauncher.model.AppInfo
 import com.indie.mindfullauncher.model.ClockStyle
 import com.indie.mindfullauncher.model.ContextProfile
 import com.indie.mindfullauncher.model.FontPreset
+import com.indie.mindfullauncher.model.IconShapePreset
 import com.indie.mindfullauncher.model.IconSizePreset
 import com.indie.mindfullauncher.model.LauncherFolder
 import com.indie.mindfullauncher.model.QuickNote
@@ -55,13 +57,71 @@ class PreferencesRepository(context: Context) {
         prefs.edit().putString(KEY_ICON_SIZE, preset.name).apply()
     }
 
+    fun getIconShapePreset(): IconShapePreset {
+        val raw = prefs.getString(KEY_ICON_SHAPE, IconShapePreset.DEFAULT.name)
+        return IconShapePreset.entries.firstOrNull { it.name == raw } ?: IconShapePreset.DEFAULT
+    }
+
+    fun setIconShapePreset(preset: IconShapePreset) {
+        prefs.edit().putString(KEY_ICON_SHAPE, preset.name).apply()
+    }
+
+    fun isHideStatusBar(): Boolean = prefs.getBoolean(KEY_HIDE_STATUS_BAR, false)
+
+    fun setHideStatusBar(hide: Boolean) {
+        prefs.edit().putBoolean(KEY_HIDE_STATUS_BAR, hide).apply()
+    }
+
+    fun getFavoriteOrder(favorites: Set<String>): List<String> {
+        val raw = prefs.getString(KEY_FAVORITE_ORDER, null)
+        val saved = if (raw != null) {
+            runCatching {
+                val arr = JSONArray(raw)
+                buildList {
+                    for (i in 0 until arr.length()) add(arr.getString(i))
+                }
+            }.getOrDefault(emptyList())
+        } else {
+            emptyList()
+        }
+        val valid = saved.filter { it in favorites }
+        val remaining = favorites.filter { it !in valid }
+        return valid + remaining
+    }
+
+    fun saveFavoriteOrder(order: List<String>) {
+        prefs.edit().putString(KEY_FAVORITE_ORDER, JSONArray(order).toString()).apply()
+    }
+
+    fun moveFavorite(packageName: String, delta: Int, currentFavorites: Set<String>): List<String> {
+        val order = getFavoriteOrder(currentFavorites).toMutableList()
+        val idx = order.indexOf(packageName)
+        if (idx < 0) return order
+        val target = (idx + delta).coerceIn(0, order.lastIndex)
+        if (target != idx) {
+            val item = order.removeAt(idx)
+            order.add(target, item)
+            saveFavoriteOrder(order)
+        }
+        return order
+    }
+
     fun getClockStyle(): ClockStyle {
-        val raw = prefs.getString(KEY_CLOCK_STYLE, ClockStyle.MINIMALIST.name)
-        return ClockStyle.entries.firstOrNull { it.name == raw } ?: ClockStyle.MINIMALIST
+        val raw = prefs.getString(KEY_CLOCK_STYLE, ClockStyle.CLASSIC.name)
+        return ClockStyle.entries.firstOrNull { it.name == raw } ?: ClockStyle.CLASSIC
     }
 
     fun setClockStyle(style: ClockStyle) {
         prefs.edit().putString(KEY_CLOCK_STYLE, style.name).apply()
+    }
+
+    fun getAccentPreset(): AccentPreset {
+        val raw = prefs.getString(KEY_ACCENT_PRESET, AccentPreset.NIAGARA_BLUE.name)
+        return AccentPreset.entries.firstOrNull { it.name == raw } ?: AccentPreset.NIAGARA_BLUE
+    }
+
+    fun setAccentPreset(preset: AccentPreset) {
+        prefs.edit().putString(KEY_ACCENT_PRESET, preset.name).apply()
     }
 
     fun isHideFavoriteLabels(): Boolean = prefs.getBoolean(KEY_HIDE_FAV_LABELS, false)
@@ -140,6 +200,46 @@ class PreferencesRepository(context: Context) {
 
     fun setPinnedWidgetId(widgetId: Int) {
         prefs.edit().putInt(KEY_PINNED_WIDGET_ID, widgetId).apply()
+    }
+
+    fun getPinnedWidgetIds(): List<Int> {
+        val raw = prefs.getString(KEY_PINNED_WIDGET_IDS, null)
+        val list = if (raw != null) {
+            runCatching {
+                val arr = JSONArray(raw)
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        val id = arr.optInt(i, -1)
+                        if (id > 0) add(id)
+                    }
+                }
+            }.getOrDefault(emptyList())
+        } else {
+            emptyList()
+        }
+        if (list.isNotEmpty()) return list
+        val legacy = getPinnedWidgetId()
+        return if (legacy > 0) listOf(legacy) else emptyList()
+    }
+
+    fun addPinnedWidgetId(widgetId: Int): List<Int> {
+        if (widgetId <= 0) return getPinnedWidgetIds()
+        val current = (getPinnedWidgetIds() + widgetId).distinct()
+        savePinnedWidgetIds(current)
+        return current
+    }
+
+    fun removePinnedWidgetId(widgetId: Int): List<Int> {
+        val current = getPinnedWidgetIds().filterNot { it == widgetId }
+        savePinnedWidgetIds(current)
+        return current
+    }
+
+    private fun savePinnedWidgetIds(ids: List<Int>) {
+        prefs.edit()
+            .putString(KEY_PINNED_WIDGET_IDS, JSONArray(ids).toString())
+            .putInt(KEY_PINNED_WIDGET_ID, ids.firstOrNull() ?: -1)
+            .apply()
     }
 
     fun getSummaryPackages(): Set<String> =
@@ -273,6 +373,13 @@ class PreferencesRepository(context: Context) {
         return updated
     }
 
+    fun renameFolder(folderId: String, newName: String): List<LauncherFolder> {
+        val clean = newName.trim().ifEmpty { return getFolders() }
+        val updated = getFolders().map { if (it.id == folderId) it.copy(name = clean) else it }
+        saveFolders(updated)
+        return updated
+    }
+
     fun toggleAppInFolder(folderId: String, packageName: String): List<LauncherFolder> {
         val updated = getFolders().map { folder ->
             if (folder.id != folderId) {
@@ -311,6 +418,7 @@ class PreferencesRepository(context: Context) {
             put("hidden", JSONArray(getHiddenPackages().toList()))
             put("iconSize", getIconSizePreset().name)
             put("clockStyle", getClockStyle().name)
+            put("accentPreset", getAccentPreset().name)
             put("hideFavoriteLabels", isHideFavoriteLabels())
             put("showBattery", isShowBatteryOnHome())
             put("showAlphabetWave", isShowAlphabetWave())
@@ -345,6 +453,9 @@ class PreferencesRepository(context: Context) {
             }
             root.optString("clockStyle").takeIf { it.isNotEmpty() }?.let { raw ->
                 ClockStyle.entries.firstOrNull { it.name == raw }?.let { setClockStyle(it) }
+            }
+            root.optString("accentPreset").takeIf { it.isNotEmpty() }?.let { raw ->
+                AccentPreset.entries.firstOrNull { it.name == raw }?.let { setAccentPreset(it) }
             }
             if (root.has("hideFavoriteLabels")) setHideFavoriteLabels(root.getBoolean("hideFavoriteLabels"))
             if (root.has("showBattery")) setShowBatteryOnHome(root.getBoolean("showBattery"))
@@ -498,7 +609,12 @@ class PreferencesRepository(context: Context) {
         private const val KEY_FRICTION_APPS = "friction_apps"
         private const val KEY_HIDDEN_APPS = "hidden_apps"
         private const val KEY_ICON_SIZE = "icon_size_preset"
+        private const val KEY_ICON_SHAPE = "icon_shape_preset"
+        private const val KEY_HIDE_STATUS_BAR = "hide_status_bar"
+        private const val KEY_FAVORITE_ORDER = "favorite_order"
+        private const val KEY_PINNED_WIDGET_IDS = "pinned_widget_ids"
         private const val KEY_CLOCK_STYLE = "clock_style"
+        private const val KEY_ACCENT_PRESET = "accent_preset"
         private const val KEY_HIDE_FAV_LABELS = "hide_favorite_labels"
         private const val KEY_SHOW_BATTERY = "show_battery_on_home"
         private const val KEY_SHOW_ALPHABET_WAVE = "show_alphabet_wave"

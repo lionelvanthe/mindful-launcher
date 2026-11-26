@@ -14,9 +14,31 @@ enum class ContextProfile(
 }
 
 enum class ClockStyle(val displayName: String) {
+    CLASSIC("Cổ điển"),
+    HORIZONTAL("Ngang"),
+    VERTICAL("Dọc"),
+    ANALOG("Đồng hồ kim"),
+    FLIP("Lật số"),
+    OVERLAP("Chồng số"),
+    DAY_OF_WEEK("Thứ trong tuần"),
     MINIMALIST("Tối giản"),
     COMPACT("Gọn"),
-    VERTICAL("Dọc")
+    NONE("Ẩn đồng hồ")
+}
+
+enum class IconShapePreset(val displayName: String) {
+    DEFAULT("Mặc định"),
+    CIRCLE("Tròn"),
+    SQUIRCLE("Bo góc"),
+    DOTS("Niagara Dots")
+}
+
+enum class AccentPreset(val displayName: String, val colorHex: Long) {
+    NIAGARA_BLUE("Niagara Blue", 0xFFB2C5FF),
+    AMBER("Hổ phách", 0xFFFFB74D),
+    GREEN("Xanh lá", 0xFF7CDC86),
+    LAVENDER("Oải hương", 0xFFD4BBFF),
+    CORAL("San hô", 0xFFFFB4AA)
 }
 
 enum class IconSizePreset(val displayName: String, val dpValue: Int) {
@@ -32,7 +54,8 @@ enum class FontPreset(val displayName: String) {
 
 data class AppInfo(
     val label: String,
-    val packageName: String
+    val packageName: String,
+    val installedAtMillis: Long = 0L
 )
 
 data class ContactMatch(

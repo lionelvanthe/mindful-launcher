@@ -36,4 +36,16 @@ class CommandBarEngineTest {
         assertEquals(2, apps.size)
         assertEquals("Calendar", apps[0].label)
     }
+
+    @Test
+    fun `evaluates niagara secret coin and dice utilities`() {
+        val coin = CommandBarEngine.evaluate("/coin", sampleApps, kotlin.random.Random(42))
+        assertTrue(coin is CommandResult.UtilityResult)
+        assertEquals("coin", (coin as CommandResult.UtilityResult).kind)
+
+        val dice = CommandBarEngine.evaluate("/dice", sampleApps, kotlin.random.Random(42))
+        assertTrue(dice is CommandResult.UtilityResult)
+        assertEquals("dice", (dice as CommandResult.UtilityResult).kind)
+        assertTrue(dice.value.startsWith("Mặt "))
+    }
 }

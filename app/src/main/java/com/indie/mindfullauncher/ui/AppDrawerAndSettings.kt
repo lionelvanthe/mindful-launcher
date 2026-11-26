@@ -62,10 +62,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.indie.mindfullauncher.model.AccentPreset
 import com.indie.mindfullauncher.model.AppInfo
 import com.indie.mindfullauncher.model.ClockStyle
 import com.indie.mindfullauncher.model.ContextProfile
 import com.indie.mindfullauncher.model.FontPreset
+import com.indie.mindfullauncher.model.IconShapePreset
 import com.indie.mindfullauncher.model.IconSizePreset
 import kotlinx.coroutines.launch
 
@@ -243,7 +245,10 @@ fun SettingsScreen(
     state: LauncherUiState,
     onBack: () -> Unit,
     onSetClockStyle: (ClockStyle) -> Unit,
+    onSetAccentPreset: (AccentPreset) -> Unit,
     onSetIconSizePreset: (IconSizePreset) -> Unit,
+    onSetIconShapePreset: (IconShapePreset) -> Unit,
+    onSetHideStatusBar: (Boolean) -> Unit,
     onSetFontPreset: (FontPreset) -> Unit,
     onSetHideFavoriteLabels: (Boolean) -> Unit,
     onSetShowBatteryOnHome: (Boolean) -> Unit,
@@ -404,6 +409,32 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
+        Text("Kiểu icon (Hình dạng & Niagara Dots)", color = colors.onBackground, style = typography.bodyLarge)
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            IconShapePreset.entries.forEach { shapePreset ->
+                FilterChip(
+                    selected = state.iconShapePreset == shapePreset,
+                    onClick = { onSetIconShapePreset(shapePreset) },
+                    shape = RoundedCornerShape(50),
+                    label = { Text(shapePreset.displayName, style = typography.labelLarge) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = colors.surface,
+                        labelColor = colors.onSurfaceVariant,
+                        selectedContainerColor = colors.primary,
+                        selectedLabelColor = colors.onPrimary
+                    ),
+                    border = null
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
         Text("Font chữ", color = colors.onBackground, style = typography.bodyLarge)
         Spacer(modifier = Modifier.height(6.dp))
         Row(
@@ -430,11 +461,43 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
+        Text("Màu nhấn", color = colors.onBackground, style = typography.bodyLarge)
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AccentPreset.entries.forEach { accent ->
+                FilterChip(
+                    selected = state.accentPreset == accent,
+                    onClick = { onSetAccentPreset(accent) },
+                    shape = RoundedCornerShape(50),
+                    label = { Text(accent.displayName, style = typography.labelLarge) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = colors.surface,
+                        labelColor = colors.onSurfaceVariant,
+                        selectedContainerColor = Color(accent.colorHex),
+                        selectedLabelColor = colors.onSecondary
+                    ),
+                    border = null
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
         SettingsSwitchRow(
             title = "Bố cục 2 cột trên màn hình lớn",
             subtitle = "Chia đôi màn hình trên Tablet hoặc màn hình gập (>= 600dp)",
             checked = state.twoColumnLargeScreen,
             onCheckedChange = onSetTwoColumnLargeScreen
+        )
+        SettingsSwitchRow(
+            title = "Ẩn thanh trạng thái (Status Bar)",
+            subtitle = "Chế độ toàn màn hình tối giản giống Niagara Launcher",
+            checked = state.hideStatusBar,
+            onCheckedChange = onSetHideStatusBar
         )
         SettingsSwitchRow(
             title = "Ẩn tên app ở Yêu thích",
@@ -547,9 +610,15 @@ fun SettingsScreen(
                     contentColor = colors.onBackground
                 )
             ) {
-                Text(if (state.pinnedWidgetId > 0) "Đổi Widget" else "Gắn Widget lên Home")
+                Text(
+                    if (state.pinnedWidgetIds.isNotEmpty()) {
+                        "Thêm Widget (${state.pinnedWidgetIds.size})"
+                    } else {
+                        "Gắn Widget lên Home"
+                    }
+                )
             }
-            if (state.pinnedWidgetId > 0) {
+            if (state.pinnedWidgetIds.isNotEmpty()) {
                 Button(
                     onClick = onClearWidget,
                     colors = ButtonDefaults.buttonColors(
@@ -557,7 +626,7 @@ fun SettingsScreen(
                         contentColor = colors.onBackground
                     )
                 ) {
-                    Text("Gỡ Widget")
+                    Text("Gỡ tất cả Widget")
                 }
             }
         }

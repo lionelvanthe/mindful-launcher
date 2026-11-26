@@ -38,8 +38,8 @@
       "name": "Automated UI and Repository Test Coverage",
       "description": "Add Compose UI tests (HomeScreen, GentleFrictionDialog, SettingsScreen) and PreferencesRepository instrumented/unit tests.",
       "dependencies": ["feat-004"],
-      "status": "not-started",
-      "evidence": ""
+      "status": "done",
+      "evidence": "Added StillnessLauncherUiTest.kt (5 Compose UI tests) and PreferencesRepositoryInstrumentedTest.kt (4 repository persistence tests); verified 9/9 passing on JSN-L22 via connectedDebugAndroidTest alongside testDebugUnitTest and assembleDebug."
     },
     {
       "id": "feat-006",

@@ -9,6 +9,7 @@ import com.indie.mindfullauncher.data.NotificationRepository
 import com.indie.mindfullauncher.data.PreferencesRepository
 import com.indie.mindfullauncher.domain.CommandBarEngine
 import com.indie.mindfullauncher.domain.CommandResult
+import com.indie.mindfullauncher.model.AccentPreset
 import com.indie.mindfullauncher.model.AppInfo
 import com.indie.mindfullauncher.model.AppShortcutItem
 import com.indie.mindfullauncher.model.CalendarEventPreview
@@ -17,6 +18,7 @@ import com.indie.mindfullauncher.model.ContactMatch
 import com.indie.mindfullauncher.model.ContextProfile
 import com.indie.mindfullauncher.model.FontPreset
 import com.indie.mindfullauncher.model.IconPackInfo
+import com.indie.mindfullauncher.model.IconShapePreset
 import com.indie.mindfullauncher.model.IconSizePreset
 import com.indie.mindfullauncher.model.LauncherFolder
 import com.indie.mindfullauncher.model.MediaPlaybackState
@@ -47,7 +49,12 @@ data class LauncherUiState(
     val frictionPackages: Set<String> = emptySet(),
     val hiddenPackages: Set<String> = emptySet(),
     val iconSizePreset: IconSizePreset = IconSizePreset.MEDIUM,
-    val clockStyle: ClockStyle = ClockStyle.MINIMALIST,
+    val iconShapePreset: IconShapePreset = IconShapePreset.DEFAULT,
+    val hideStatusBar: Boolean = false,
+    val favoriteOrder: List<String> = emptyList(),
+    val pinnedWidgetIds: List<Int> = emptyList(),
+    val clockStyle: ClockStyle = ClockStyle.CLASSIC,
+    val accentPreset: AccentPreset = AccentPreset.NIAGARA_BLUE,
     val hideFavoriteLabels: Boolean = false,
     val showBatteryOnHome: Boolean = true,
     val showAlphabetWave: Boolean = true,
@@ -137,7 +144,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val friction = prefsRepo.getFrictionPackages(apps)
             val hidden = prefsRepo.getHiddenPackages()
             val iconSize = prefsRepo.getIconSizePreset()
+            val iconShape = prefsRepo.getIconShapePreset()
+            val hideStatusBar = prefsRepo.isHideStatusBar()
+            val favoriteOrder = prefsRepo.getFavoriteOrder(pinnedMap[ContextProfile.WORK].orEmpty())
+            val widgetIds = prefsRepo.getPinnedWidgetIds()
             val clockStyle = prefsRepo.getClockStyle()
+            val accentPreset = prefsRepo.getAccentPreset()
             val hideFavLabels = prefsRepo.isHideFavoriteLabels()
             val showBattery = prefsRepo.isShowBatteryOnHome()
             val showAlphabet = prefsRepo.isShowAlphabetWave()
@@ -185,7 +197,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     frictionPackages = friction,
                     hiddenPackages = hidden,
                     iconSizePreset = iconSize,
+                    iconShapePreset = iconShape,
+                    hideStatusBar = hideStatusBar,
+                    favoriteOrder = favoriteOrder,
+                    pinnedWidgetIds = widgetIds,
                     clockStyle = clockStyle,
+                    accentPreset = accentPreset,
                     hideFavoriteLabels = hideFavLabels,
                     showBatteryOnHome = showBattery,
                     showAlphabetWave = showAlphabet,
@@ -386,9 +403,46 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (profile == ContextProfile.ALL) return
         val apps = _uiState.value.installedApps
         val updatedSet = prefsRepo.togglePinnedPackage(profile, packageName, apps)
-        _uiState.update { state ->
-            state.copy(pinnedByProfile = state.pinnedByProfile + (profile to updatedSet))
+        val updatedOrder = if (profile == ContextProfile.WORK) {
+            val order = prefsRepo.getFavoriteOrder(updatedSet)
+            prefsRepo.saveFavoriteOrder(order)
+            order
+        } else {
+            _uiState.value.favoriteOrder
         }
+        _uiState.update { state ->
+            state.copy(
+                pinnedByProfile = state.pinnedByProfile + (profile to updatedSet),
+                favoriteOrder = updatedOrder
+            )
+        }
+    }
+
+    fun moveFavorite(packageName: String, delta: Int) {
+        val currentFavs = _uiState.value.pinnedByProfile[ContextProfile.WORK].orEmpty()
+        val updatedOrder = prefsRepo.moveFavorite(packageName, delta, currentFavs)
+        _uiState.update { it.copy(favoriteOrder = updatedOrder) }
+    }
+
+    fun setIconShapePreset(preset: IconShapePreset) {
+        prefsRepo.setIconShapePreset(preset)
+        _uiState.update { it.copy(iconShapePreset = preset) }
+    }
+
+    fun setHideStatusBar(hide: Boolean) {
+        prefsRepo.setHideStatusBar(hide)
+        _uiState.update { it.copy(hideStatusBar = hide) }
+    }
+
+    fun renameFolder(folderId: String, newName: String) {
+        val updated = prefsRepo.renameFolder(folderId, newName)
+        _uiState.update { it.copy(folders = updated) }
+    }
+
+    fun rerollCommandUtility() {
+        val state = _uiState.value
+        val result = CommandBarEngine.evaluate(state.commandQuery, state.installedApps)
+        _uiState.update { it.copy(commandResult = result) }
     }
 
     fun toggleFrictionApp(packageName: String) {
@@ -410,6 +464,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setClockStyle(style: ClockStyle) {
         prefsRepo.setClockStyle(style)
         _uiState.update { it.copy(clockStyle = style) }
+    }
+
+    fun setAccentPreset(preset: AccentPreset) {
+        prefsRepo.setAccentPreset(preset)
+        _uiState.update { it.copy(accentPreset = preset) }
     }
 
     fun setHideFavoriteLabels(hide: Boolean) {
@@ -503,10 +562,38 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { it.copy(pinnedWidgetId = widgetId) }
     }
 
+    fun addPinnedWidgetId(widgetId: Int) {
+        val updated = prefsRepo.addPinnedWidgetId(widgetId)
+        _uiState.update {
+            it.copy(
+                pinnedWidgetIds = updated,
+                pinnedWidgetId = updated.firstOrNull() ?: -1
+            )
+        }
+    }
+
+    fun removePinnedWidgetId(widgetId: Int) {
+        if (widgetId > 0) WidgetHostHelper.deleteWidgetId(getApplication(), widgetId)
+        val updated = prefsRepo.removePinnedWidgetId(widgetId)
+        _uiState.update {
+            it.copy(
+                pinnedWidgetIds = updated,
+                pinnedWidgetId = updated.firstOrNull() ?: -1
+            )
+        }
+    }
+
     fun clearPinnedWidget() {
+        _uiState.value.pinnedWidgetIds.forEach { id ->
+            if (id > 0) WidgetHostHelper.deleteWidgetId(getApplication(), id)
+        }
         val oldId = _uiState.value.pinnedWidgetId
-        if (oldId > 0) WidgetHostHelper.deleteWidgetId(getApplication(), oldId)
-        setPinnedWidgetId(-1)
+        if (oldId > 0 && oldId !in _uiState.value.pinnedWidgetIds) {
+            WidgetHostHelper.deleteWidgetId(getApplication(), oldId)
+        }
+        _uiState.value.pinnedWidgetIds.forEach { prefsRepo.removePinnedWidgetId(it) }
+        prefsRepo.setPinnedWidgetId(-1)
+        _uiState.update { it.copy(pinnedWidgetIds = emptyList(), pinnedWidgetId = -1) }
     }
 
     fun toggleSummaryPackage(packageName: String) {

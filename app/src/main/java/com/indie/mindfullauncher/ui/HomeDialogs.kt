@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -40,11 +42,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -81,10 +85,13 @@ fun NiagaraFolderPopupDialog(
     onDismiss: () -> Unit,
     onAppClick: (AppInfo) -> Unit,
     onRemoveApp: (String) -> Unit,
+    onRenameFolder: (String) -> Unit,
     onDeleteFolder: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
+    var isRenaming by remember(folder.id) { mutableStateOf(false) }
+    var renameText by remember(folder.id, folder.name) { mutableStateOf(folder.name) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -103,7 +110,8 @@ fun NiagaraFolderPopupDialog(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Folder,
@@ -113,15 +121,54 @@ fun NiagaraFolderPopupDialog(
                         Text(
                             text = folder.name,
                             color = colors.onSurface,
-                            style = typography.titleMedium
+                            style = typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    IconButton(onClick = onDeleteFolder) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteOutline,
-                            contentDescription = "Xóa thư mục",
-                            tint = colors.onSurfaceVariant
+                    Row {
+                        IconButton(onClick = { isRenaming = !isRenaming }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Đổi tên thư mục",
+                                tint = colors.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = onDeleteFolder) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = "Xóa thư mục",
+                                tint = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                if (isRenaming) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = renameText,
+                            onValueChange = { renameText = it },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text("Tên thư mục...") },
+                            shape = RoundedCornerShape(14.dp)
                         )
+                        Button(
+                            onClick = {
+                                if (renameText.isNotBlank()) {
+                                    onRenameFolder(renameText.trim())
+                                    isRenaming = false
+                                }
+                            }
+                        ) {
+                            Text("Lưu")
+                        }
                     }
                 }
                 HorizontalDivider(color = colors.surfaceVariant)
@@ -250,6 +297,8 @@ fun NiagaraAppOptionsDialog(
     shortcuts: List<AppShortcutItem>,
     popupWidgetId: Int,
     isFavorite: Boolean,
+    canMoveUp: Boolean = false,
+    canMoveDown: Boolean = false,
     isHidden: Boolean,
     isSummarized: Boolean,
     iconPackPackage: String?,
@@ -257,6 +306,8 @@ fun NiagaraAppOptionsDialog(
     onDismiss: () -> Unit,
     onLaunchShortcut: (AppShortcutItem) -> Unit,
     onToggleFavorite: () -> Unit,
+    onMoveFavoriteUp: () -> Unit = {},
+    onMoveFavoriteDown: () -> Unit = {},
     onAddToFolder: () -> Unit,
     onRenameApp: () -> Unit,
     onPickPopupWidget: () -> Unit,
@@ -273,6 +324,7 @@ fun NiagaraAppOptionsDialog(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
         containerColor = colors.surface,
         contentColor = colors.onSurface
     ) {
@@ -338,6 +390,20 @@ fun NiagaraAppOptionsDialog(
                 label = if (isFavorite) "Bỏ khỏi Yêu thích" else "Ghim vào Yêu thích",
                 onClick = onToggleFavorite
             )
+            if (isFavorite && canMoveUp) {
+                DialogOptionRow(
+                    icon = Icons.Default.ArrowUpward,
+                    label = "Di chuyển lên trong Yêu thích",
+                    onClick = onMoveFavoriteUp
+                )
+            }
+            if (isFavorite && canMoveDown) {
+                DialogOptionRow(
+                    icon = Icons.Default.ArrowDownward,
+                    label = "Di chuyển xuống trong Yêu thích",
+                    onClick = onMoveFavoriteDown
+                )
+            }
             DialogOptionRow(
                 icon = Icons.Default.CreateNewFolder,
                 label = "Thêm vào thư mục",
@@ -402,6 +468,7 @@ fun NiagaraAppPopupSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
         containerColor = colors.surface,
         contentColor = colors.onSurface
     ) {
@@ -964,9 +1031,9 @@ private fun DialogOptionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 50.dp)
+            .defaultMinSize(minHeight = 52.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = 24.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -1075,6 +1142,257 @@ fun QuickNotesDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ScreenTimeUsageDialog(
+    installedApps: List<AppInfo>,
+    weeklyUsageMillis: Map<String, Long>,
+    iconPackPackage: String?,
+    monochromeIcons: Boolean,
+    onDismiss: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    val topUsage = remember(installedApps, weeklyUsageMillis) {
+        val map = installedApps.associateBy { it.packageName }
+        weeklyUsageMillis.entries
+            .filter { it.value >= 60_000L && map.containsKey(it.key) }
+            .sortedByDescending { it.value }
+            .take(10)
+            .mapNotNull { (pkg, ms) -> map[pkg]?.let { it to ms } }
+    }
+    val totalMinutes = remember(weeklyUsageMillis) {
+        (weeklyUsageMillis.values.sum() / 60_000L).toInt()
+    }
+    val maxMillis = topUsage.firstOrNull()?.second?.coerceAtLeast(1L) ?: 1L
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = colors.surface,
+            tonalElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Thống kê sử dụng (7 ngày)",
+                    color = colors.onSurface,
+                    style = typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                val totalHours = totalMinutes / 60
+                val remMins = totalMinutes % 60
+                Text(
+                    text = if (totalMinutes > 0) "Tổng cộng: ${totalHours}g ${remMins}p" else "Chưa có dữ liệu sử dụng",
+                    color = colors.secondary,
+                    style = typography.labelLarge
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                if (topUsage.isEmpty()) {
+                    Text(
+                        text = "Cấp quyền Usage Access trong Cài đặt để xem thời gian sử dụng từng ứng dụng.",
+                        color = colors.onSurfaceVariant,
+                        style = typography.bodyMedium
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(topUsage, key = { it.first.packageName }) { (app, ms) ->
+                            val mins = (ms / 60_000L).toInt()
+                            val h = mins / 60
+                            val m = mins % 60
+                            val formatted = if (h > 0) "${h}g ${m}p" else "${m}p"
+                            val progress = (ms.toFloat() / maxMillis.toFloat()).coerceIn(0.05f, 1f)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AppIcon(
+                                    packageName = app.packageName,
+                                    contentDescription = app.label,
+                                    size = 32.dp,
+                                    iconPackPackage = iconPackPackage,
+                                    monochrome = monochromeIcons
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = app.label,
+                                            color = colors.onSurface,
+                                            style = typography.bodyMedium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = formatted,
+                                            color = colors.onSurfaceVariant,
+                                            style = typography.labelMedium
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    LinearProgressIndicator(
+                                        progress = { progress },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(5.dp)
+                                            .clip(RoundedCornerShape(50)),
+                                        color = colors.secondary,
+                                        trackColor = colors.surfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Đóng")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NiagaraSearchOptionsSheet(
+    showContactSearch: Boolean,
+    smartSortEnabled: Boolean,
+    hasLastResult: Boolean,
+    onDismiss: () -> Unit,
+    onToggleContactSearch: (Boolean) -> Unit,
+    onToggleSmartSort: (Boolean) -> Unit,
+    onQuickInsert: (String) -> Unit,
+    onClearLastResult: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+        containerColor = colors.surface,
+        contentColor = colors.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = 20.dp)
+        ) {
+            Text(
+                text = "Tìm kiếm",
+                color = colors.onSurface,
+                style = typography.headlineMedium,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 56.dp)
+                    .clickable { onToggleContactSearch(!showContactSearch) }
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Tìm kiếm trong danh bạ", color = colors.onSurface, style = typography.bodyLarge)
+                    Text(
+                        "Thêm các liên hệ vào mục tìm kiếm",
+                        color = colors.onSurfaceVariant,
+                        style = typography.bodySmall
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Switch(checked = showContactSearch, onCheckedChange = onToggleContactSearch)
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 56.dp)
+                    .clickable { onToggleSmartSort(!smartSortEnabled) }
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Sắp xếp thông minh", color = colors.onSurface, style = typography.bodyLarge)
+                    Text(
+                        "Ưu tiên ứng dụng mở thường xuyên",
+                        color = colors.onSurfaceVariant,
+                        style = typography.bodySmall
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Switch(checked = smartSortEnabled, onCheckedChange = onToggleSmartSort)
+            }
+
+            HorizontalDivider(
+                color = colors.surfaceVariant,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+
+            Text(
+                text = "Lệnh nhanh offline",
+                color = colors.secondary,
+                style = typography.labelMedium,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onClick = { onQuickInsert("! ") }) {
+                    Text("! Ghi chú")
+                }
+                OutlinedButton(onClick = { onQuickInsert("/coin") }) {
+                    Text("/coin")
+                }
+                OutlinedButton(onClick = { onQuickInsert("/dice") }) {
+                    Text("/dice")
+                }
+            }
+
+            if (hasLastResult) {
+                DialogOptionRow(
+                    icon = Icons.Default.DeleteOutline,
+                    label = "Xóa \"Kết quả cuối\"",
+                    onClick = {
+                        onClearLastResult()
+                        onDismiss()
+                    }
+                )
+            }
+
+            DialogOptionRow(
+                icon = Icons.Default.Info,
+                label = "Cài đặt Launcher",
+                onClick = {
+                    onDismiss()
+                    onOpenSettings()
+                }
+            )
         }
     }
 }

@@ -13,6 +13,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,7 +65,7 @@ class MainActivity : ComponentActivity() {
                     if (targetPkg != null) {
                         vm.setAppPopupWidget(targetPkg, id)
                     } else {
-                        vm.setPinnedWidgetId(id)
+                        vm.addPinnedWidgetId(id)
                     }
                 } else if (id > 0) {
                     WidgetHostHelper.deleteWidgetId(this, id)
@@ -85,7 +88,18 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            StillnessTheme(fontPreset = state.fontPreset) {
+            LaunchedEffect(state.hideStatusBar) {
+                val controller = WindowCompat.getInsetsController(window, window.decorView)
+                controller.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                if (state.hideStatusBar) {
+                    controller.hide(WindowInsetsCompat.Type.statusBars())
+                } else {
+                    controller.show(WindowInsetsCompat.Type.statusBars())
+                }
+            }
+
+            StillnessTheme(fontPreset = state.fontPreset, accentPreset = state.accentPreset) {
                 when (route) {
                     LauncherRoute.HOME -> HomeScreen(
                         state = state,
@@ -94,6 +108,8 @@ class MainActivity : ComponentActivity() {
                         onAppClick = vm::launchAppDirect,
                         onDialContact = vm::dialContact,
                         onToggleFavorite = { pkg -> vm.togglePin(ContextProfile.WORK, pkg) },
+                        onMoveFavorite = vm::moveFavorite,
+                        onRerollUtility = vm::rerollCommandUtility,
                         onToggleHidden = vm::toggleHiddenApp,
                         onToggleSummary = vm::toggleSummaryPackage,
                         onRenameApp = vm::setCustomAppName,
@@ -106,7 +122,9 @@ class MainActivity : ComponentActivity() {
                         onClearPopupWidget = vm::clearAppPopupWidget,
                         onCreateFolder = vm::createFolder,
                         onToggleAppInFolder = vm::toggleAppInFolder,
+                        onRenameFolder = vm::renameFolder,
                         onDeleteFolder = vm::deleteFolder,
+                        onRemovePinnedWidget = vm::removePinnedWidgetId,
                         onLoadShortcuts = vm::loadShortcutsForApp,
                         onLaunchShortcut = vm::launchShortcut,
                         onSetNiagaraButtonPackage = vm::setNiagaraButtonPackage,
@@ -119,6 +137,8 @@ class MainActivity : ComponentActivity() {
                         onUninstallApp = vm::uninstallApp,
                         onToggleNote = vm::toggleNoteDone,
                         onDeleteNote = vm::deleteNote,
+                        onSetShowContactSearch = vm::setShowContactSearch,
+                        onSetSmartSortEnabled = vm::setSmartSortEnabled,
                         onOpenSettings = { route = LauncherRoute.SETTINGS },
                         onOpenDefaultLauncher = vm::openDefaultLauncherSettings,
                         onDismissSetupBanner = vm::dismissSetupBanner,
@@ -135,7 +155,10 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         onBack = { route = LauncherRoute.HOME },
                         onSetClockStyle = vm::setClockStyle,
+                        onSetAccentPreset = vm::setAccentPreset,
                         onSetIconSizePreset = vm::setIconSizePreset,
+                        onSetIconShapePreset = vm::setIconShapePreset,
+                        onSetHideStatusBar = vm::setHideStatusBar,
                         onSetFontPreset = vm::setFontPreset,
                         onSetHideFavoriteLabels = vm::setHideFavoriteLabels,
                         onSetShowBatteryOnHome = vm::setShowBatteryOnHome,

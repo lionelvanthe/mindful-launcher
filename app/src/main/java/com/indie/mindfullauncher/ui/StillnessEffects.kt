@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -124,15 +125,22 @@ fun Modifier.verticalFadingEdge(
         }
     }
 
+private sealed interface WaveSlot {
+    data object Favorites : WaveSlot
+    data class Letter(val char: Char) : WaveSlot
+    data object Search : WaveSlot
+}
+
 /**
- * Right-edge vertical alphabet scrubber with a floating letter handle and responsive
- * wave animation for rapid one-handed A-Z navigation.
+ * Right-edge vertical alphabet scrubber with a floating handle and continuous Niagara wave
+ * animation covering Favorites (★), A–Z letters, and Search (🔍) in a single fluid gesture.
  */
 @Composable
 fun AlphabetScrubber(
     letters: List<Char>,
     onLetterSelected: (Char) -> Unit,
     modifier: Modifier = Modifier,
+    isFavoritesActive: Boolean = false,
     onFavoritesSelected: (() -> Unit)? = null,
     onSearchSelected: (() -> Unit)? = null
 ) {
@@ -143,42 +151,54 @@ fun AlphabetScrubber(
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
 
+    val slots = remember(letters, onFavoritesSelected != null, onSearchSelected != null) {
+        buildList {
+            if (onFavoritesSelected != null) add(WaveSlot.Favorites)
+            letters.forEach { add(WaveSlot.Letter(it)) }
+            if (onSearchSelected != null) add(WaveSlot.Search)
+        }
+    }
+
     var railHeightPx by remember { mutableIntStateOf(0) }
-    var activeLetter by remember { mutableStateOf<Char?>(null) }
+    var activeIndex by remember { mutableIntStateOf(-1) }
     var pointerY by remember { mutableFloatStateOf(0f) }
 
     fun updateSelection(y: Float) {
-        if (railHeightPx <= 0 || letters.isEmpty()) return
+        if (railHeightPx <= 0 || slots.isEmpty()) return
         val clampedY = y.coerceIn(0f, railHeightPx.toFloat())
         pointerY = clampedY
         val fraction = (clampedY / railHeightPx).coerceIn(0f, 0.9999f)
-        val index = (fraction * letters.size).toInt().coerceIn(0, letters.lastIndex)
-        val letter = letters[index]
-        if (activeLetter != letter) {
-            activeLetter = letter
+        val index = (fraction * slots.size).toInt().coerceIn(0, slots.lastIndex)
+        if (activeIndex != index) {
+            activeIndex = index
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onLetterSelected(letter)
+            when (val slot = slots[index]) {
+                WaveSlot.Favorites -> onFavoritesSelected?.invoke()
+                is WaveSlot.Letter -> onLetterSelected(slot.char)
+                WaveSlot.Search -> Unit // Triggered on release for smooth search opening
+            }
         }
     }
+
+    val activeSlot = slots.getOrNull(activeIndex)
 
     BoxWithConstraints(
         modifier = modifier.fillMaxHeight(),
         contentAlignment = Alignment.CenterEnd
     ) {
-        val actionSlotDp = 28.dp
-        val reservedForActionsDp = (if (onFavoritesSelected != null) 34.dp else 0.dp) +
-            (if (onSearchSelected != null) 34.dp else 0.dp) + 16.dp
-        val availableForLettersDp = (maxHeight - reservedForActionsDp).coerceAtLeast(120.dp)
-        val slotHeightDp = (availableForLettersDp / letters.size).coerceIn(12.dp, 22.dp)
+        val availableDp = (maxHeight - 16.dp).coerceAtLeast(160.dp)
+        // Niagara alphabet_wave_max_section_size = 19sp
+        val slotHeightDp = (availableDp / slots.size).coerceIn(11.dp, 19.dp)
         val letterFontSp = when {
-            slotHeightDp < 14.dp -> 10.sp
-            slotHeightDp < 17.dp -> 11.sp
+            slotHeightDp < 13.dp -> 10.sp
+            slotHeightDp < 16.dp -> 11.sp
             else -> 12.sp
         }
 
-        // Floating letter handle offset to the left of the scrubber rail
-        val handleSizePx = with(density) { 48.dp.toPx() }
-        val handleOffsetX = with(density) { (-64).dp.toPx() }.roundToInt()
+        // Niagara AlphabetWaveHandle: diameter = 44dp, elevation = 4dp, text = 28sp
+        val handleDiameterDp = 44.dp
+        val handleSizePx = with(density) { handleDiameterDp.toPx() }
+        val handleOffsetX = with(density) { (-96).dp.toPx() }.roundToInt()
         val maxHalfRange = ((railHeightPx - handleSizePx) / 2f).coerceAtLeast(0f).roundToInt()
         val targetHandleY = (pointerY - railHeightPx / 2f).roundToInt()
             .coerceIn(-maxHalfRange, maxHalfRange)
@@ -192,102 +212,119 @@ fun AlphabetScrubber(
         )
 
         AnimatedVisibility(
-            visible = activeLetter != null,
+            visible = activeSlot != null,
             enter = fadeIn() + scaleIn(initialScale = 0.8f),
             exit = fadeOut() + scaleOut(targetScale = 0.8f),
             modifier = Modifier.offset { IntOffset(handleOffsetX, smoothHandleY) }
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(handleDiameterDp)
+                    .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
-                    .background(colors.primary),
+                    .background(colors.secondary),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = activeLetter?.toString().orEmpty(),
-                    color = colors.onPrimary,
-                    style = typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                when (activeSlot) {
+                    WaveSlot.Favorites -> Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        tint = colors.onSecondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    WaveSlot.Search -> Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = colors.onSecondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    is WaveSlot.Letter -> Text(
+                        text = activeSlot.char.toString(),
+                        color = colors.onSecondary,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        style = typography.headlineMedium
+                    )
+                    null -> Unit
+                }
             }
         }
 
         Column(
             modifier = Modifier
                 .width(36.dp)
-                .padding(vertical = 4.dp),
+                .onSizeChanged { railHeightPx = it.height }
+                .pointerInput(slots) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        down.consume()
+                        updateSelection(down.position.y)
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val activeChange = event.changes.firstOrNull { it.pressed }
+                            if (activeChange == null) {
+                                if (slots.getOrNull(activeIndex) == WaveSlot.Search) {
+                                    onSearchSelected?.invoke()
+                                }
+                                activeIndex = -1
+                                break
+                            }
+                            activeChange.consume()
+                            updateSelection(activeChange.position.y)
+                        }
+                    }
+                },
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
+            verticalArrangement = Arrangement.Center
         ) {
-            if (onFavoritesSelected != null) {
+            // Niagara alphabet_wave_pressed_offset = 64dp with smooth Gaussian arc
+            val maxWavePx = with(density) { 64.dp.toPx() }
+            slots.forEachIndexed { idx, slot ->
+                val isSelected = activeIndex == idx
+                val targetWaveOffset = if (activeIndex >= 0) {
+                    val dist = abs(idx - activeIndex).toFloat()
+                    (-maxWavePx * exp(-(dist * dist) / 7.5f)).roundToInt()
+                } else {
+                    0
+                }
+                val animatedWaveOffset by animateIntAsState(
+                    targetValue = targetWaveOffset,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    label = "wave_$idx"
+                )
                 Box(
                     modifier = Modifier
-                        .size(actionSlotDp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onFavoritesSelected),
+                        .height(slotHeightDp)
+                        .width(36.dp)
+                        .offset { IntOffset(animatedWaveOffset, 0) },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Yêu thích",
-                        tint = colors.onBackground.copy(alpha = 0.85f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Column(
-                modifier = Modifier
-                    .width(36.dp)
-                    .onSizeChanged { railHeightPx = it.height }
-                    .pointerInput(letters) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            down.consume()
-                            updateSelection(down.position.y)
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val activeChange = event.changes.firstOrNull { it.pressed }
-                                if (activeChange == null) {
-                                    activeLetter = null
-                                    break
-                                }
-                                activeChange.consume()
-                                updateSelection(activeChange.position.y)
-                            }
-                        }
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                val activeIndex = activeLetter?.let { letters.indexOf(it) } ?: -1
-                val maxWavePx = with(density) { 22.dp.toPx() }
-                letters.forEachIndexed { idx, letter ->
-                    val isSelected = activeLetter == letter
-                    val targetWaveOffset = if (activeIndex >= 0) {
-                        val dist = abs(idx - activeIndex).toFloat()
-                        (-maxWavePx * exp(-(dist * dist) / 4.5f)).roundToInt()
-                    } else {
-                        0
-                    }
-                    val animatedWaveOffset by animateIntAsState(
-                        targetValue = targetWaveOffset,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMedium
-                        ),
-                        label = "wave_$idx"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .height(slotHeightDp)
-                            .width(36.dp)
-                            .offset { IntOffset(animatedWaveOffset, 0) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = letter.toString(),
+                    when (slot) {
+                        WaveSlot.Favorites -> Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Yêu thích",
+                            tint = if (isSelected || isFavoritesActive) {
+                                colors.secondary
+                            } else {
+                                colors.onBackground.copy(alpha = 0.82f)
+                            },
+                            modifier = Modifier.size(if (isSelected) 17.dp else 14.dp)
+                        )
+                        WaveSlot.Search -> Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Tìm kiếm",
+                            tint = if (isSelected) {
+                                colors.secondary
+                            } else {
+                                colors.onBackground.copy(alpha = 0.82f)
+                            },
+                            modifier = Modifier.size(if (isSelected) 17.dp else 14.dp)
+                        )
+                        is WaveSlot.Letter -> Text(
+                            text = slot.char.toString(),
                             color = if (isSelected) {
                                 colors.secondary
                             } else {
@@ -298,23 +335,6 @@ fun AlphabetScrubber(
                             style = typography.labelSmall
                         )
                     }
-                }
-            }
-
-            if (onSearchSelected != null) {
-                Box(
-                    modifier = Modifier
-                        .size(actionSlotDp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onSearchSelected),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Tìm kiếm",
-                        tint = colors.onBackground.copy(alpha = 0.85f),
-                        modifier = Modifier.size(16.dp)
-                    )
                 }
             }
         }

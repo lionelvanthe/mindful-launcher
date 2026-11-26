@@ -2,11 +2,13 @@ package com.indie.mindfullauncher.domain
 
 import com.indie.mindfullauncher.model.AppInfo
 import java.text.DecimalFormat
+import kotlin.random.Random
 
 sealed interface CommandResult {
     data object Empty : CommandResult
     data class NoteAction(val noteText: String) : CommandResult
     data class MathResult(val expression: String, val formattedValue: String) : CommandResult
+    data class UtilityResult(val kind: String, val title: String, val value: String, val hint: String) : CommandResult
     data class AppMatches(val apps: List<AppInfo>) : CommandResult
 }
 
@@ -15,12 +17,32 @@ object CommandBarEngine {
     private val mathPattern = Regex("""^[\d\s+\-*/().%]+$""")
     private val formatter = DecimalFormat("#,##0.####")
 
-    fun evaluate(rawQuery: String, installedApps: List<AppInfo>): CommandResult {
+    fun evaluate(rawQuery: String, installedApps: List<AppInfo>, random: Random = Random.Default): CommandResult {
         val query = rawQuery.trim()
         if (query.isEmpty()) return CommandResult.Empty
 
         if (query.startsWith("!")) {
             return CommandResult.NoteAction(query.removePrefix("!").trim())
+        }
+
+        val lower = query.lowercase()
+        if (lower == "/coin" || lower == "coin" || lower == "tung đồng xu" || lower == "tung dong xu") {
+            val isHeads = random.nextBoolean()
+            return CommandResult.UtilityResult(
+                kind = "coin",
+                title = "Tung đồng xu",
+                value = if (isHeads) "Ngửa (Heads)" else "Sấp (Tails)",
+                hint = "Chạm để tung lại"
+            )
+        }
+        if (lower == "/dice" || lower == "dice" || lower == "xúc xắc" || lower == "xuc xac") {
+            val roll = random.nextInt(1, 7)
+            return CommandResult.UtilityResult(
+                kind = "dice",
+                title = "Gieo xúc xắc",
+                value = "Mặt $roll",
+                hint = "Chạm để gieo lại"
+            )
         }
 
         if (mathPattern.matches(query) && query.any { it in "+-*/%" }) {
@@ -33,7 +55,6 @@ object CommandBarEngine {
             }
         }
 
-        val lower = query.lowercase()
         val prefixMatches = installedApps.filter { it.label.lowercase().startsWith(lower) }
         val containsMatches = installedApps.filter {
             !it.label.lowercase().startsWith(lower) && it.label.lowercase().contains(lower)
