@@ -46,8 +46,8 @@
       "name": "Fix AppDrawerScreen Nested Scroll Layout",
       "description": "Replace nested verticalScroll + LazyColumn in AppDrawerScreen with a single bounded scrollable layout to prevent Compose measurement crashes.",
       "dependencies": ["feat-004"],
-      "status": "not-started",
-      "evidence": ""
+      "status": "done",
+      "evidence": "Removed outer verticalScroll in AppDrawerScreen and bounded LazyColumn with Modifier.weight(1f).fillMaxWidth() + imePadding() in AppDrawerAndSettings.kt; verified via init.ps1, lintDebug, and live device launch."
     },
     {
       "id": "feat-007",

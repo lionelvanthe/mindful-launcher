@@ -2,8 +2,8 @@
 
 ## Current State
 
-**Last Updated:** 2026-11-26 09:13
-**Active Feature:** Bugfix — Startup crash on Android 9 / API < 29 (`AppRepository.hasUsageStatsPermission`) — Next: `feat-005` or `feat-006`
+**Last Updated:** 2026-11-26 09:21
+**Active Feature:** `feat-006` (Fix AppDrawerScreen Nested Scroll Layout — Completed) — Next: `feat-005` (Automated UI and Repository Test Coverage)
 
 ## Status
 
@@ -49,7 +49,8 @@
 
 - [x] Baseline unit tests & debug APK build pass via `.\init.ps1`
 - [x] Fixed startup crash on API 26–28 (verified on `Mi_MIX_2` / Android 9 API 28): guarded `AppOpsManager.unsafeCheckOpNoThrow` with `Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q` and fell back to `checkOpNoThrow` in `AppRepository.kt`
-- [x] Verified `.\init.ps1` (`testDebugUnitTest` + `assembleDebug`), `gradle lintDebug --no-daemon`, and live launch on device `1f5efaa4`
+- [x] Fixed `feat-006` nested scroll crash in `AppDrawerScreen` (`AppDrawerAndSettings.kt`): removed outer `.verticalScroll(rememberScrollState())` and bounded `LazyColumn` with `Modifier.weight(1f).fillMaxWidth()` + `imePadding()`
+- [x] Verified `.\init.ps1`, `gradle lintDebug --no-daemon`, and live AppDrawer navigation on device `1f5efaa4`
 
 ## Notes for Next Session
 

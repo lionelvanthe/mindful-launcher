@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Fix startup crash when opening Stillness Launcher on Android 9 (`Mi_MIX_2`, API 28).
-- Current status: Fixed and verified on device (`1f5efaa4`), `.\init.ps1`, and `lintDebug`.
-- Branch / commit: `master` (uncommitted fix in `AppRepository.kt`, `progress.md`, `session-handoff.md`).
+- Goal: Fix `AppDrawerScreen` nested scroll crash (`feat-006`) on Stillness Launcher.
+- Current status: Fixed and verified via `.\init.ps1`, `lintDebug`, and live device test on `1f5efaa4`.
+- Branch / commit: `master` (ready to commit).
 
 ## Completed This Session
 
