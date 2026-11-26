@@ -1,0 +1,18 @@
+# Gradle & Android build artifacts
+.gradle/
+build/
+app/build/
+
+# IDE & local config
+.idea/
+*.iml
+local.properties
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
