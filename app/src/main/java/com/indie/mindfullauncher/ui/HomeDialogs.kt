@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Bolt
@@ -31,15 +34,20 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -58,6 +67,7 @@ import com.indie.mindfullauncher.model.AppShortcutItem
 import com.indie.mindfullauncher.model.CalendarEventPreview
 import com.indie.mindfullauncher.model.LauncherFolder
 import com.indie.mindfullauncher.model.NotificationPreview
+import com.indie.mindfullauncher.model.QuickNote
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -233,6 +243,7 @@ fun AddToFolderDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NiagaraAppOptionsDialog(
     app: AppInfo,
@@ -257,29 +268,169 @@ fun NiagaraAppOptionsDialog(
 ) {
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = colors.surface,
-            tonalElevation = 6.dp,
-            modifier = Modifier.fillMaxWidth()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = colors.surface,
+        contentColor = colors.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
         ) {
-            Column(modifier = Modifier.padding(vertical = 12.dp)) {
-                Row(
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AppIcon(
+                    packageName = app.packageName,
+                    contentDescription = app.label,
+                    size = 40.dp,
+                    iconPackPackage = iconPackPackage,
+                    monochrome = monochromeIcons
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = app.label,
+                    color = colors.onSurface,
+                    style = typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (popupWidgetId > 0) {
+                HorizontalDivider(color = colors.surfaceVariant)
+                AndroidView(
+                    factory = { ctx ->
+                        WidgetHostHelper.createWidgetView(ctx, popupWidgetId)
+                            ?: android.widget.FrameLayout(ctx)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .heightIn(min = 64.dp, max = 140.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+
+            if (shortcuts.isNotEmpty()) {
+                HorizontalDivider(color = colors.surfaceVariant)
+                shortcuts.forEach { sc ->
+                    DialogOptionRow(
+                        icon = Icons.Default.Bolt,
+                        label = sc.label,
+                        onClick = { onLaunchShortcut(sc) }
+                    )
+                }
+            }
+
+            HorizontalDivider(color = colors.surfaceVariant)
+
+            DialogOptionRow(
+                icon = Icons.Default.PushPin,
+                label = if (isFavorite) "Bỏ khỏi Yêu thích" else "Ghim vào Yêu thích",
+                onClick = onToggleFavorite
+            )
+            DialogOptionRow(
+                icon = Icons.Default.CreateNewFolder,
+                label = "Thêm vào thư mục",
+                onClick = onAddToFolder
+            )
+            DialogOptionRow(
+                icon = Icons.Default.Edit,
+                label = "Đổi tên ứng dụng",
+                onClick = onRenameApp
+            )
+            DialogOptionRow(
+                icon = Icons.Default.Widgets,
+                label = if (popupWidgetId > 0) "Gỡ Widget khỏi Pop-up" else "Gắn Widget vào Pop-up",
+                onClick = if (popupWidgetId > 0) onClearPopupWidget else onPickPopupWidget
+            )
+            DialogOptionRow(
+                icon = Icons.Default.NotificationsOff,
+                label = if (isSummarized) "Bỏ khỏi Tóm tắt thông báo" else "Gom vào Tóm tắt thông báo",
+                onClick = onToggleSummary
+            )
+            DialogOptionRow(
+                icon = Icons.Default.VisibilityOff,
+                label = if (isHidden) "Hiện lại trong danh sách" else "Ẩn khỏi danh sách A–Z",
+                onClick = onToggleHidden
+            )
+            DialogOptionRow(
+                icon = Icons.Default.Info,
+                label = "Thông tin ứng dụng",
+                onClick = onOpenAppInfo
+            )
+            DialogOptionRow(
+                icon = Icons.Default.DeleteOutline,
+                label = "Gỡ cài đặt",
+                onClick = onUninstall
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NiagaraAppPopupSheet(
+    app: AppInfo,
+    shortcuts: List<AppShortcutItem>,
+    popupWidgetId: Int,
+    notificationPreview: NotificationPreview?,
+    iconPackPackage: String?,
+    monochromeIcons: Boolean,
+    onDismiss: () -> Unit,
+    onOpenApp: () -> Unit,
+    onOpenOptions: () -> Unit,
+    onLaunchShortcut: (AppShortcutItem) -> Unit,
+    onPickPopupWidget: () -> Unit,
+    onDismissNotification: (String) -> Unit,
+    onSendReply: (NotificationPreview, String) -> Boolean
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var replyText by remember { mutableStateOf("") }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = colors.surface,
+        contentColor = colors.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(bottom = 20.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
                     AppIcon(
                         packageName = app.packageName,
                         contentDescription = app.label,
-                        size = 40.dp,
+                        size = 38.dp,
                         iconPackPackage = iconPackPackage,
                         monochrome = monochromeIcons
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(14.dp))
                     Text(
                         text = app.label,
                         color = colors.onSurface,
@@ -288,74 +439,118 @@ fun NiagaraAppOptionsDialog(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-
-                if (popupWidgetId > 0) {
-                    HorizontalDivider(color = colors.surfaceVariant)
-                    AndroidView(
-                        factory = { ctx ->
-                            WidgetHostHelper.createWidgetView(ctx, popupWidgetId)
-                                ?: android.widget.FrameLayout(ctx)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 64.dp, max = 140.dp)
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-
-                if (shortcuts.isNotEmpty()) {
-                    HorizontalDivider(color = colors.surfaceVariant)
-                    shortcuts.forEach { sc ->
-                        DialogOptionRow(
-                            icon = Icons.Default.Bolt,
-                            label = sc.label,
-                            onClick = { onLaunchShortcut(sc) }
-                        )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onOpenOptions) {
+                        Text("Tùy chỉnh")
+                    }
+                    Button(onClick = onOpenApp) {
+                        Text("Mở")
                     }
                 }
+            }
 
+            if (notificationPreview != null) {
                 HorizontalDivider(color = colors.surfaceVariant)
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = notificationPreview.title.ifEmpty { app.label },
+                            color = colors.secondary,
+                            style = typography.labelLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { onDismissNotification(notificationPreview.key) }) {
+                            Text("Xóa thông báo")
+                        }
+                    }
+                    if (notificationPreview.text.isNotEmpty()) {
+                        Text(
+                            text = notificationPreview.text,
+                            color = colors.onSurface,
+                            style = typography.bodyMedium
+                        )
+                    }
+                    if (notificationPreview.replyAction != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = replyText,
+                                onValueChange = { replyText = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                placeholder = { Text("Trả lời nhanh...") },
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            IconButton(
+                                onClick = {
+                                    if (replyText.isNotBlank() && onSendReply(notificationPreview, replyText)) {
+                                        onDismiss()
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "Gửi",
+                                    tint = colors.secondary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
-                DialogOptionRow(
-                    icon = Icons.Default.PushPin,
-                    label = if (isFavorite) "Bỏ khỏi Yêu thích" else "Ghim vào Yêu thích",
-                    onClick = onToggleFavorite
+            if (popupWidgetId > 0) {
+                HorizontalDivider(color = colors.surfaceVariant)
+                AndroidView(
+                    factory = { ctx ->
+                        WidgetHostHelper.createWidgetView(ctx, popupWidgetId)
+                            ?: android.widget.FrameLayout(ctx)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 64.dp, max = 160.dp)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 )
-                DialogOptionRow(
-                    icon = Icons.Default.CreateNewFolder,
-                    label = "Thêm vào thư mục",
-                    onClick = onAddToFolder
-                )
-                DialogOptionRow(
-                    icon = Icons.Default.Edit,
-                    label = "Đổi tên ứng dụng",
-                    onClick = onRenameApp
-                )
-                DialogOptionRow(
-                    icon = Icons.Default.Widgets,
-                    label = if (popupWidgetId > 0) "Gỡ Widget khỏi Pop-up" else "Gắn Widget vào Pop-up",
-                    onClick = if (popupWidgetId > 0) onClearPopupWidget else onPickPopupWidget
-                )
-                DialogOptionRow(
-                    icon = Icons.Default.NotificationsOff,
-                    label = if (isSummarized) "Bỏ khỏi Tóm tắt thông báo" else "Gom vào Tóm tắt thông báo",
-                    onClick = onToggleSummary
-                )
-                DialogOptionRow(
-                    icon = Icons.Default.VisibilityOff,
-                    label = if (isHidden) "Hiện lại trong danh sách" else "Ẩn khỏi danh sách A–Z",
-                    onClick = onToggleHidden
-                )
-                DialogOptionRow(
-                    icon = Icons.Default.Info,
-                    label = "Thông tin ứng dụng",
-                    onClick = onOpenAppInfo
-                )
-                DialogOptionRow(
-                    icon = Icons.Default.DeleteOutline,
-                    label = "Gỡ cài đặt",
-                    onClick = onUninstall
-                )
+            }
+
+            if (shortcuts.isNotEmpty()) {
+                HorizontalDivider(color = colors.surfaceVariant)
+                shortcuts.forEach { sc ->
+                    DialogOptionRow(
+                        icon = Icons.Default.Bolt,
+                        label = sc.label,
+                        onClick = { onLaunchShortcut(sc) }
+                    )
+                }
+            }
+
+            if (notificationPreview == null && popupWidgetId <= 0 && shortcuts.isEmpty()) {
+                HorizontalDivider(color = colors.surfaceVariant)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Chưa có thông báo, phím tắt hay widget gắn kèm cho ${app.label}.",
+                        color = colors.onSurfaceVariant,
+                        style = typography.bodyMedium
+                    )
+                    OutlinedButton(onClick = onPickPopupWidget) {
+                        Text("Gắn Widget vào Pop-up")
+                    }
+                }
             }
         }
     }
@@ -786,5 +981,100 @@ private fun DialogOptionRow(
             color = colors.onSurface,
             style = typography.bodyLarge
         )
+    }
+}
+
+@Composable
+fun QuickNotesDialog(
+    notes: List<QuickNote>,
+    onToggleNote: (String) -> Unit,
+    onDeleteNote: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = colors.surface,
+            tonalElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Việc cần làm",
+                    color = colors.onSurface,
+                    style = typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Gõ \"! nội dung\" trong thanh tìm kiếm để thêm nhanh.",
+                    color = colors.onSurfaceVariant,
+                    style = typography.bodySmall
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                if (notes.isEmpty()) {
+                    Text(
+                        text = "Chưa có ghi chú nào.",
+                        color = colors.onSurfaceVariant,
+                        style = typography.bodyMedium
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(notes, key = { it.id }) { note ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 44.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = note.isDone,
+                                    onCheckedChange = { onToggleNote(note.id) },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = colors.onSurfaceVariant,
+                                        uncheckedColor = colors.onSurfaceVariant,
+                                        checkmarkColor = colors.background
+                                    )
+                                )
+                                Text(
+                                    text = note.text,
+                                    color = if (note.isDone) colors.onSurfaceVariant else colors.onSurface,
+                                    style = typography.bodyLarge,
+                                    textDecoration = if (note.isDone) TextDecoration.LineThrough else TextDecoration.None,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = { onDeleteNote(note.id) },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Xóa ghi chú",
+                                        tint = colors.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Đóng")
+                    }
+                }
+            }
+        }
     }
 }

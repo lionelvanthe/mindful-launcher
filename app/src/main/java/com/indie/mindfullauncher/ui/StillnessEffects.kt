@@ -3,6 +3,7 @@ package com.indie.mindfullauncher.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -10,14 +11,16 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -122,7 +125,8 @@ fun Modifier.verticalFadingEdge(
     }
 
 /**
- * Right-edge vertical alphabet scrubber with a floating letter handle for rapid A-Z navigation.
+ * Right-edge vertical alphabet scrubber with a floating letter handle and responsive
+ * wave animation for rapid one-handed A-Z navigation.
  */
 @Composable
 fun AlphabetScrubber(
@@ -157,22 +161,41 @@ fun AlphabetScrubber(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier.fillMaxHeight(),
         contentAlignment = Alignment.CenterEnd
     ) {
+        val actionSlotDp = 28.dp
+        val reservedForActionsDp = (if (onFavoritesSelected != null) 34.dp else 0.dp) +
+            (if (onSearchSelected != null) 34.dp else 0.dp) + 16.dp
+        val availableForLettersDp = (maxHeight - reservedForActionsDp).coerceAtLeast(120.dp)
+        val slotHeightDp = (availableForLettersDp / letters.size).coerceIn(12.dp, 22.dp)
+        val letterFontSp = when {
+            slotHeightDp < 14.dp -> 10.sp
+            slotHeightDp < 17.dp -> 11.sp
+            else -> 12.sp
+        }
+
         // Floating letter handle offset to the left of the scrubber rail
         val handleSizePx = with(density) { 48.dp.toPx() }
         val handleOffsetX = with(density) { (-64).dp.toPx() }.roundToInt()
         val maxHalfRange = ((railHeightPx - handleSizePx) / 2f).coerceAtLeast(0f).roundToInt()
-        val handleOffsetY = (pointerY - railHeightPx / 2f).roundToInt()
+        val targetHandleY = (pointerY - railHeightPx / 2f).roundToInt()
             .coerceIn(-maxHalfRange, maxHalfRange)
+        val smoothHandleY by animateIntAsState(
+            targetValue = targetHandleY,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessHigh
+            ),
+            label = "handle_y"
+        )
 
         AnimatedVisibility(
             visible = activeLetter != null,
             enter = fadeIn() + scaleIn(initialScale = 0.8f),
             exit = fadeOut() + scaleOut(targetScale = 0.8f),
-            modifier = Modifier.offset { IntOffset(handleOffsetX, handleOffsetY) }
+            modifier = Modifier.offset { IntOffset(handleOffsetX, smoothHandleY) }
         ) {
             Box(
                 modifier = Modifier
@@ -193,19 +216,25 @@ fun AlphabetScrubber(
         Column(
             modifier = Modifier
                 .width(36.dp)
-                .padding(vertical = 8.dp),
+                .padding(vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)
+            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
         ) {
             if (onFavoritesSelected != null) {
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = "Yêu thích",
-                    tint = colors.onBackground.copy(alpha = 0.85f),
+                Box(
                     modifier = Modifier
-                        .size(16.dp)
-                        .clickable(onClick = onFavoritesSelected)
-                )
+                        .size(actionSlotDp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onFavoritesSelected),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Yêu thích",
+                        tint = colors.onBackground.copy(alpha = 0.85f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
 
             Column(
@@ -213,62 +242,80 @@ fun AlphabetScrubber(
                     .width(36.dp)
                     .onSizeChanged { railHeightPx = it.height }
                     .pointerInput(letters) {
-                        detectTapGestures(
-                            onPress = { offset ->
-                                updateSelection(offset.y)
-                                tryAwaitRelease()
-                                activeLetter = null
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            updateSelection(down.position.y)
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val activeChange = event.changes.firstOrNull { it.pressed }
+                                if (activeChange == null) {
+                                    activeLetter = null
+                                    break
+                                }
+                                activeChange.consume()
+                                updateSelection(activeChange.position.y)
                             }
-                        )
-                    }
-                    .pointerInput(letters) {
-                        detectDragGestures(
-                            onDragStart = { offset -> updateSelection(offset.y) },
-                            onDrag = { change, _ ->
-                                change.consume()
-                                updateSelection(change.position.y)
-                            },
-                            onDragEnd = { activeLetter = null },
-                            onDragCancel = { activeLetter = null }
-                        )
+                        }
                     },
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
+                verticalArrangement = Arrangement.Center
             ) {
                 val activeIndex = activeLetter?.let { letters.indexOf(it) } ?: -1
-                val maxWavePx = with(density) { 20.dp.toPx() }
+                val maxWavePx = with(density) { 22.dp.toPx() }
                 letters.forEachIndexed { idx, letter ->
                     val isSelected = activeLetter == letter
-                    val waveOffset = if (activeIndex >= 0) {
+                    val targetWaveOffset = if (activeIndex >= 0) {
                         val dist = abs(idx - activeIndex).toFloat()
                         (-maxWavePx * exp(-(dist * dist) / 4.5f)).roundToInt()
                     } else {
                         0
                     }
-                    Text(
-                        text = letter.toString(),
-                        color = if (isSelected) {
-                            colors.secondary
-                        } else {
-                            colors.onBackground.copy(alpha = 0.85f)
-                        },
-                        fontSize = if (isSelected) 15.sp else 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                        style = typography.labelSmall,
-                        modifier = Modifier.offset { IntOffset(waveOffset, 0) }
+                    val animatedWaveOffset by animateIntAsState(
+                        targetValue = targetWaveOffset,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "wave_$idx"
                     )
+                    Box(
+                        modifier = Modifier
+                            .height(slotHeightDp)
+                            .width(36.dp)
+                            .offset { IntOffset(animatedWaveOffset, 0) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = letter.toString(),
+                            color = if (isSelected) {
+                                colors.secondary
+                            } else {
+                                colors.onBackground.copy(alpha = 0.82f)
+                            },
+                            fontSize = if (isSelected) (letterFontSp.value + 2f).sp else letterFontSp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                            style = typography.labelSmall
+                        )
+                    }
                 }
             }
 
             if (onSearchSelected != null) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Tìm kiếm",
-                    tint = colors.onBackground.copy(alpha = 0.85f),
+                Box(
                     modifier = Modifier
-                        .size(16.dp)
-                        .clickable(onClick = onSearchSelected)
-                )
+                        .size(actionSlotDp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onSearchSelected),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Tìm kiếm",
+                        tint = colors.onBackground.copy(alpha = 0.85f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }

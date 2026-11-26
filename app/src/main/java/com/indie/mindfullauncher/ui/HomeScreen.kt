@@ -8,6 +8,7 @@ import android.os.BatteryManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -18,11 +19,15 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -32,6 +37,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -47,10 +53,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -58,8 +66,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -73,6 +79,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -89,19 +96,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlin.math.roundToInt
 import com.indie.mindfullauncher.domain.CommandResult
 import com.indie.mindfullauncher.model.AppInfo
 import com.indie.mindfullauncher.model.AppShortcutItem
@@ -123,7 +136,7 @@ private sealed interface AlphabetListEntry {
     data class AppItem(val app: AppInfo) : AlphabetListEntry
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     state: LauncherUiState,
@@ -203,6 +216,7 @@ fun HomeScreen(
     var isAlphabetMode by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var optionsApp by remember { mutableStateOf<AppInfo?>(null) }
+    var popupApp by remember { mutableStateOf<AppInfo?>(null) }
     var activeFolder by remember { mutableStateOf<LauncherFolder?>(null) }
     var folderTargetApp by remember { mutableStateOf<AppInfo?>(null) }
     var activeNotificationPair by remember { mutableStateOf<Pair<AppInfo, NotificationPreview>?>(null) }
@@ -210,6 +224,7 @@ fun HomeScreen(
     var showFabCustomizer by remember { mutableStateOf(false) }
     var showTipsDialog by remember { mutableStateOf(false) }
     var showAgendaDialog by remember { mutableStateOf(false) }
+    var showNotesDialog by remember { mutableStateOf(false) }
     var renameTargetApp by remember { mutableStateOf<AppInfo?>(null) }
 
     val isTwoColumn = LocalConfiguration.current.screenWidthDp >= 600 && state.twoColumnLargeScreen
@@ -325,6 +340,39 @@ fun HomeScreen(
         }
     }
 
+    val swipeUpSearchConnection = remember(isAlphabetMode, isSearchExpanded, state.commandQuery) {
+        object : NestedScrollConnection {
+            private var upwardOverscroll = 0f
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (source == NestedScrollSource.UserInput &&
+                    !isSearchExpanded &&
+                    !isAlphabetMode &&
+                    state.commandQuery.isEmpty() &&
+                    available.y < 0f
+                ) {
+                    upwardOverscroll += available.y
+                    if (upwardOverscroll < -65f) {
+                        upwardOverscroll = 0f
+                        isSearchExpanded = true
+                    }
+                } else if (available.y >= 0f) {
+                    upwardOverscroll = 0f
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                upwardOverscroll = 0f
+                return Velocity.Zero
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -332,6 +380,14 @@ fun HomeScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onLongPress = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onOpenSettings()
+                    }
+                )
+            }
             .pointerInput(Unit) {
                 var totalDrag = 0f
                 detectVerticalDragGestures(
@@ -355,163 +411,125 @@ fun HomeScreen(
                     bottom = 12.dp
                 )
         ) {
-            if (!isAlphabetMode && state.commandQuery.isEmpty() && !isTwoColumn) {
-                NiagaraClockHeader(
-                    timeStr = timeStr,
-                    hourStr = hourStr,
-                    minStr = minStr,
-                    dateStr = dateStr.replaceFirstChar { it.uppercase() },
-                    batteryPct = if (state.showBatteryOnHome && batteryPct >= 0) batteryPct else null,
-                    calendarEvent = if (state.showCalendarEvents) state.nextCalendarEvent else null,
-                    clockStyle = state.clockStyle,
-                    textShadow = onWallpaperShadow,
-                    onClickCalendar = {
-                        if (state.hasCalendarPermission) showAgendaDialog = true
-                    }
-                )
-
-                if (state.showMediaPlayer && state.mediaPlayback != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    NiagaraMediaCard(
-                        media = state.mediaPlayback,
-                        iconPackPackage = state.selectedIconPack,
-                        monochromeIcons = state.monochromeIcons,
-                        onTogglePlayPause = onToggleMediaPlayPause,
-                        onNext = onSkipMediaNext,
-                        onPrevious = onSkipMediaPrevious
-                    )
-                }
-
-                if (state.pinnedWidgetId > 0) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    AndroidView(
-                        factory = { ctx ->
-                            WidgetHostHelper.createWidgetView(ctx, state.pinnedWidgetId)
-                                ?: android.widget.FrameLayout(ctx)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 64.dp, max = 160.dp)
-                    )
-                }
-
-                if (summaryItems.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = colors.surface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showSummaryDialog = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = null,
-                                tint = colors.secondary,
-                                modifier = Modifier.size(18.dp)
+            if (state.commandQuery.isEmpty() && !isTwoColumn) {
+                AnimatedContent(
+                    targetState = isAlphabetMode,
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    label = "home_header_mode"
+                ) { alphabetActive ->
+                    if (!alphabetActive) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            NiagaraClockHeader(
+                                timeStr = timeStr,
+                                hourStr = hourStr,
+                                minStr = minStr,
+                                dateStr = dateStr.replaceFirstChar { it.uppercase() },
+                                batteryPct = if (state.showBatteryOnHome && batteryPct >= 0) batteryPct else null,
+                                calendarEvent = if (state.showCalendarEvents) state.nextCalendarEvent else null,
+                                clockStyle = state.clockStyle,
+                                textShadow = onWallpaperShadow,
+                                onClickCalendar = {
+                                    if (state.hasCalendarPermission) showAgendaDialog = true
+                                }
                             )
-                            Text(
-                                text = "Tóm tắt thông báo (${summaryItems.size})",
-                                color = colors.onSurface,
-                                style = typography.labelLarge
-                            )
+
+                            val showOnboarding = !state.isSetupBannerDismissed && !state.isDefaultLauncher
+                            val pendingNotesCount = state.notes.count { !it.isDone }
+                            if (showOnboarding || summaryItems.isNotEmpty() || state.notes.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    if (showOnboarding) {
+                                        HomeStatusPill(
+                                            icon = Icons.Default.Home,
+                                            label = "Đặt làm mặc định",
+                                            accent = true,
+                                            onClick = onOpenDefaultLauncher,
+                                            onDismiss = onDismissSetupBanner
+                                        )
+                                    }
+                                    if (summaryItems.isNotEmpty()) {
+                                        HomeStatusPill(
+                                            icon = Icons.Default.Notifications,
+                                            label = "Thông báo (${summaryItems.size})",
+                                            accent = true,
+                                            onClick = { showSummaryDialog = true }
+                                        )
+                                    }
+                                    if (state.notes.isNotEmpty()) {
+                                        val noteLabel = if (pendingNotesCount > 0) {
+                                            "$pendingNotesCount việc cần làm"
+                                        } else {
+                                            "Ghi chú (${state.notes.size})"
+                                        }
+                                        HomeStatusPill(
+                                            icon = Icons.Default.CheckCircleOutline,
+                                            label = noteLabel,
+                                            accent = false,
+                                            onClick = { showNotesDialog = true }
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (state.showMediaPlayer && state.mediaPlayback != null) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                NiagaraMediaCard(
+                                    media = state.mediaPlayback,
+                                    iconPackPackage = state.selectedIconPack,
+                                    monochromeIcons = state.monochromeIcons,
+                                    onTogglePlayPause = onToggleMediaPlayPause,
+                                    onNext = onSkipMediaNext,
+                                    onPrevious = onSkipMediaPrevious
+                                )
+                            }
+
+                            if (state.pinnedWidgetId > 0) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                AndroidView(
+                                    factory = { ctx ->
+                                        WidgetHostHelper.createWidgetView(ctx, state.pinnedWidgetId)
+                                            ?: android.widget.FrameLayout(ctx)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 64.dp, max = 160.dp)
+                                )
+                            }
                         }
-                    }
-                }
-
-                val showOnboarding = !state.isSetupBannerDismissed && !state.isDefaultLauncher
-                if (showOnboarding) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    FirstRunSetupCard(
-                        onOpenDefaultLauncher = onOpenDefaultLauncher,
-                        onDismiss = onDismissSetupBanner
-                    )
-                }
-
-                if (!state.isTipsBannerDismissed) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = colors.surface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showTipsDialog = true }
-                    ) {
+                    } else {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Mẹo: Nhấn giữ app để tạo thư mục, ẩn app…",
+                                text = "Tất cả ứng dụng",
                                 color = colors.onSurfaceVariant,
-                                style = typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
+                                style = typography.titleSmall
                             )
-                            IconButton(
-                                onClick = onDismissTipsBanner,
-                                modifier = Modifier.size(32.dp)
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable { isAlphabetMode = false }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Ẩn mẹo",
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Quay lại Yêu thích",
                                     tint = colors.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
-                            }
-                        }
-                    }
-                }
-
-                if (state.notes.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = "VIỆC CẦN LÀM",
-                        color = colors.onSurfaceVariant,
-                        style = typography.labelMedium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    state.notes.take(3).forEach { note ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .defaultMinSize(minHeight = 44.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = note.isDone,
-                                onCheckedChange = { onToggleNote(note.id) },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = colors.onSurfaceVariant,
-                                    uncheckedColor = colors.onSurfaceVariant,
-                                    checkmarkColor = colors.background
-                                )
-                            )
-                            Text(
-                                text = note.text,
-                                color = if (note.isDone) colors.onSurfaceVariant else colors.onBackground,
-                                style = typography.bodyLarge,
-                                textDecoration = if (note.isDone) TextDecoration.LineThrough else TextDecoration.None,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = { onDeleteNote(note.id) },
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Xóa ghi chú",
-                                    tint = colors.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
+                                Text(
+                                    text = "Yêu thích",
+                                    color = colors.onSurfaceVariant,
+                                    style = typography.labelLarge
                                 )
                             }
                         }
@@ -713,17 +731,18 @@ fun HomeScreen(
                                         }
                                     }
                                 }
-                                items(res.apps, key = { it.packageName }) { app ->
-                                    NiagaraAppRow(
-                                        app = app,
-                                        iconSize = iconSizeDp,
-                                        showLabel = true,
-                                        iconPackPackage = state.selectedIconPack,
-                                        monochromeIcons = state.monochromeIcons,
-                                        onClick = { onAppClick(app) },
-                                        onLongClick = { optionsApp = app }
-                                    )
-                                }
+                                    items(res.apps, key = { it.packageName }) { app ->
+                                        NiagaraAppRow(
+                                            app = app,
+                                            iconSize = iconSizeDp,
+                                            showLabel = true,
+                                            iconPackPackage = state.selectedIconPack,
+                                            monochromeIcons = state.monochromeIcons,
+                                            onClick = { onAppClick(app) },
+                                            onLongClick = { optionsApp = app },
+                                            onSwipeRight = { popupApp = app }
+                                        )
+                                    }
                             }
                         }
                     }
@@ -771,7 +790,61 @@ fun HomeScreen(
                                                     iconPackPackage = state.selectedIconPack,
                                                     monochromeIcons = state.monochromeIcons,
                                                     onClick = { onAppClick(entry.app) },
-                                                    onLongClick = { optionsApp = entry.app }
+                                                    onLongClick = { optionsApp = entry.app },
+                                                    onSwipeRight = { popupApp = entry.app }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    item(key = "az_footer_actions") {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 16.dp, bottom = 24.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .defaultMinSize(minHeight = 48.dp)
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .clickable(onClick = onOpenSettings)
+                                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(18.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Settings,
+                                                    contentDescription = null,
+                                                    tint = colors.onSurfaceVariant,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                                Text(
+                                                    text = "Cài đặt Stillness",
+                                                    color = colors.onSurfaceVariant,
+                                                    style = typography.titleMedium
+                                                )
+                                            }
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .defaultMinSize(minHeight = 48.dp)
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .clickable { showTipsDialog = true }
+                                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(18.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                                                    contentDescription = null,
+                                                    tint = colors.onSurfaceVariant,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                                Text(
+                                                    text = "Hướng dẫn thao tác",
+                                                    color = colors.onSurfaceVariant,
+                                                    style = typography.titleMedium
                                                 )
                                             }
                                         }
@@ -802,6 +875,7 @@ fun HomeScreen(
                                 LazyColumn(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .nestedScroll(swipeUpSearchConnection)
                                         .verticalFadingEdge(topFadeHeight = 16.dp, bottomFadeHeight = 16.dp),
                                     verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
@@ -835,7 +909,8 @@ fun HomeScreen(
                                                 null
                                             },
                                             onClick = { onAppClick(app) },
-                                            onLongClick = { optionsApp = app }
+                                            onLongClick = { optionsApp = app },
+                                            onSwipeRight = { popupApp = app }
                                         )
                                     }
                                     if (musicSuggestions.isNotEmpty()) {
@@ -866,7 +941,8 @@ fun HomeScreen(
                                                 iconPackPackage = state.selectedIconPack,
                                                 monochromeIcons = state.monochromeIcons,
                                                 onClick = { onAppClick(app) },
-                                                onLongClick = { optionsApp = app }
+                                                onLongClick = { optionsApp = app },
+                                                onSwipeRight = { popupApp = app }
                                             )
                                         }
                                     }
@@ -887,7 +963,8 @@ fun HomeScreen(
                                                 iconPackPackage = state.selectedIconPack,
                                                 monochromeIcons = state.monochromeIcons,
                                                 onClick = { onAppClick(app) },
-                                                onLongClick = { optionsApp = app }
+                                                onLongClick = { optionsApp = app },
+                                                onSwipeRight = { popupApp = app }
                                             )
                                         }
                                     }
@@ -967,38 +1044,14 @@ fun HomeScreen(
                 }
             }
 
-            if (!isSearchExpanded && state.commandQuery.isEmpty()) {
+            if (!isSearchExpanded && state.commandQuery.isEmpty() && !state.showAlphabetWave) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.Start
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = onOpenSettings,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = "Cài đặt",
-                                tint = colors.onSurfaceVariant
-                            )
-                        }
-                        IconButton(
-                            onClick = { showTipsDialog = true },
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.HelpOutline,
-                                contentDescription = "Hướng dẫn thao tác",
-                                tint = colors.onSurfaceVariant
-                            )
-                        }
-                    }
-                    if (!state.showAlphabetWave) {
-                        TextButton(onClick = { isAlphabetMode = !isAlphabetMode }) {
-                            Text(if (isAlphabetMode) "Yêu thích" else "Tất cả A–Z")
-                        }
+                    TextButton(onClick = { isAlphabetMode = !isAlphabetMode }) {
+                        Text(if (isAlphabetMode) "Yêu thích" else "Tất cả A–Z")
                     }
                 }
             }
@@ -1065,9 +1118,51 @@ fun HomeScreen(
                 onSearchSelected = { isSearchExpanded = true },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 6.dp, top = 56.dp, bottom = 88.dp)
+                    .padding(end = 6.dp, top = 36.dp, bottom = 84.dp)
             )
         }
+    }
+
+    popupApp?.let { selected ->
+        var shortcuts by remember(selected.packageName) { mutableStateOf<List<AppShortcutItem>>(emptyList()) }
+        LaunchedEffect(selected.packageName) {
+            shortcuts = withContext(Dispatchers.IO) { onLoadShortcuts(selected.packageName) }
+        }
+        val popupWidgetId = state.appPopupWidgets[selected.packageName] ?: -1
+        val notifPreview = if (state.showNotificationPreviews) {
+            state.notificationPreviews[selected.packageName]
+        } else {
+            null
+        }
+        NiagaraAppPopupSheet(
+            app = selected,
+            shortcuts = shortcuts,
+            popupWidgetId = popupWidgetId,
+            notificationPreview = notifPreview,
+            iconPackPackage = state.selectedIconPack,
+            monochromeIcons = state.monochromeIcons,
+            onDismiss = { popupApp = null },
+            onOpenApp = {
+                popupApp = null
+                onAppClick(selected)
+            },
+            onOpenOptions = {
+                popupApp = null
+                optionsApp = selected
+            },
+            onLaunchShortcut = { sc ->
+                onLaunchShortcut(sc.packageName, sc.id)
+                popupApp = null
+            },
+            onPickPopupWidget = {
+                popupApp = null
+                onPickPopupWidget(selected.packageName)
+            },
+            onDismissNotification = { key ->
+                onDismissNotification(key)
+            },
+            onSendReply = onSendNotificationReply
+        )
     }
 
     optionsApp?.let { selected ->
@@ -1223,6 +1318,15 @@ fun HomeScreen(
 
     if (showTipsDialog) {
         QuickTipsDialog(onDismiss = { showTipsDialog = false })
+    }
+
+    if (showNotesDialog) {
+        QuickNotesDialog(
+            notes = state.notes,
+            onToggleNote = onToggleNote,
+            onDeleteNote = onDeleteNote,
+            onDismiss = { showNotesDialog = false }
+        )
     }
 
     if (showAgendaDialog) {
@@ -1416,39 +1520,64 @@ private fun NiagaraMediaCard(
 }
 
 @Composable
-private fun FirstRunSetupCard(
-    onOpenDefaultLauncher: () -> Unit,
-    onDismiss: () -> Unit
+private fun HomeStatusPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    accent: Boolean,
+    onClick: () -> Unit,
+    onDismiss: (() -> Unit)? = null
 ) {
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
 
     Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = colors.surface,
-        modifier = Modifier.fillMaxWidth()
+        shape = RoundedCornerShape(50),
+        color = colors.surface.copy(alpha = 0.9f),
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.padding(
+                start = 10.dp,
+                end = if (onDismiss != null) 4.dp else 12.dp,
+                top = 6.dp,
+                bottom = 6.dp
+            ),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            OutlinedButton(onClick = onOpenDefaultLauncher) {
-                Text("Đặt làm Launcher mặc định", style = typography.labelMedium)
-            }
-            IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp)) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Ẩn hướng dẫn",
-                    tint = colors.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (accent) colors.secondary else colors.onSurfaceVariant,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = label,
+                color = colors.onSurface,
+                style = typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (onDismiss != null) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(22.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Ẩn",
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
             }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun NiagaraAppRow(
     app: AppInfo,
@@ -1459,19 +1588,59 @@ private fun NiagaraAppRow(
     notificationPreview: String? = null,
     onNotificationClick: (() -> Unit)? = null,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onSwipeRight: (() -> Unit)? = null
 ) {
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
     val interactionSource = remember { MutableInteractionSource() }
     val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val swipeThresholdPx = with(density) { 48.dp.toPx() }
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+    val animatedOffsetPx by animateFloatAsState(
+        targetValue = dragOffsetPx,
+        label = "app_row_swipe"
+    )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .offset { IntOffset(animatedOffsetPx.roundToInt(), 0) }
             .pressScale(interactionSource)
             .defaultMinSize(minHeight = (iconSize + 12.dp).coerceAtLeast(48.dp))
             .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (onSwipeRight != null) {
+                    Modifier.pointerInput(app.packageName, onSwipeRight) {
+                        var triggered = false
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                triggered = false
+                                dragOffsetPx = 0f
+                            },
+                            onHorizontalDrag = { change, dragAmount ->
+                                if (dragAmount > 0f || dragOffsetPx > 0f) {
+                                    change.consume()
+                                    dragOffsetPx = (dragOffsetPx + dragAmount).coerceIn(0f, swipeThresholdPx * 1.4f)
+                                    if (!triggered && dragOffsetPx >= swipeThresholdPx) {
+                                        triggered = true
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                }
+                            },
+                            onDragEnd = {
+                                val shouldOpen = triggered || dragOffsetPx >= swipeThresholdPx
+                                dragOffsetPx = 0f
+                                if (shouldOpen) onSwipeRight()
+                            },
+                            onDragCancel = { dragOffsetPx = 0f }
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
