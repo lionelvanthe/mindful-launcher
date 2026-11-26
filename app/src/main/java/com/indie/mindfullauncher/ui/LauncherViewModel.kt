@@ -4,11 +4,23 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.indie.mindfullauncher.data.AppRepository
+import com.indie.mindfullauncher.data.IconPackHelper
+import com.indie.mindfullauncher.data.NotificationRepository
 import com.indie.mindfullauncher.data.PreferencesRepository
 import com.indie.mindfullauncher.domain.CommandBarEngine
 import com.indie.mindfullauncher.domain.CommandResult
 import com.indie.mindfullauncher.model.AppInfo
+import com.indie.mindfullauncher.model.AppShortcutItem
+import com.indie.mindfullauncher.model.CalendarEventPreview
+import com.indie.mindfullauncher.model.ClockStyle
+import com.indie.mindfullauncher.model.ContactMatch
 import com.indie.mindfullauncher.model.ContextProfile
+import com.indie.mindfullauncher.model.FontPreset
+import com.indie.mindfullauncher.model.IconPackInfo
+import com.indie.mindfullauncher.model.IconSizePreset
+import com.indie.mindfullauncher.model.LauncherFolder
+import com.indie.mindfullauncher.model.MediaPlaybackState
+import com.indie.mindfullauncher.model.NotificationPreview
 import com.indie.mindfullauncher.model.QuickNote
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,13 +45,49 @@ data class LauncherUiState(
     val installedApps: List<AppInfo> = emptyList(),
     val pinnedByProfile: Map<ContextProfile, Set<String>> = emptyMap(),
     val frictionPackages: Set<String> = emptySet(),
+    val hiddenPackages: Set<String> = emptySet(),
+    val iconSizePreset: IconSizePreset = IconSizePreset.MEDIUM,
+    val clockStyle: ClockStyle = ClockStyle.MINIMALIST,
+    val hideFavoriteLabels: Boolean = false,
+    val showBatteryOnHome: Boolean = true,
+    val showAlphabetWave: Boolean = true,
+    val showWallpaperBackground: Boolean = true,
+    val showCalendarEvents: Boolean = true,
+    val showNotificationPreviews: Boolean = true,
+    val showMediaPlayer: Boolean = true,
+    val smartSortEnabled: Boolean = false,
+    val showMostUsedApps: Boolean = true,
+    val monochromeIcons: Boolean = false,
+    val fontPreset: FontPreset = FontPreset.NIAGARA,
+    val showContactSearch: Boolean = true,
+    val showMusicOnHeadphones: Boolean = true,
+    val twoColumnLargeScreen: Boolean = true,
+    val isHeadphonesConnected: Boolean = false,
+    val customAppNames: Map<String, String> = emptyMap(),
+    val appPopupWidgets: Map<String, Int> = emptyMap(),
+    val contactMatches: List<ContactMatch> = emptyList(),
+    val upcomingCalendarEvents: List<CalendarEventPreview> = emptyList(),
+    val hasContactsPermission: Boolean = false,
+    val selectedIconPack: String? = null,
+    val availableIconPacks: List<IconPackInfo> = emptyList(),
+    val niagaraButtonPackage: String? = null,
+    val pinnedWidgetId: Int = -1,
+    val summaryPackages: Set<String> = emptySet(),
+    val weeklyUsageMillis: Map<String, Long> = emptyMap(),
+    val folders: List<LauncherFolder> = emptyList(),
+    val nextCalendarEvent: CalendarEventPreview? = null,
+    val notificationPreviews: Map<String, NotificationPreview> = emptyMap(),
+    val mediaPlayback: MediaPlaybackState? = null,
+    val hasCalendarPermission: Boolean = false,
+    val hasNotificationPermission: Boolean = false,
     val notes: List<QuickNote> = emptyList(),
     val commandQuery: String = "",
     val commandResult: CommandResult = CommandResult.Empty,
     val pendingFriction: PendingFriction? = null,
     val hasUsagePermission: Boolean = false,
     val isDefaultLauncher: Boolean = false,
-    val isSetupBannerDismissed: Boolean = false
+    val isSetupBannerDismissed: Boolean = false,
+    val isTipsBannerDismissed: Boolean = false
 ) {
     val visibleContextApps: List<AppInfo>
         get() {
@@ -61,21 +109,72 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     init {
         refreshAll()
+        viewModelScope.launch {
+            NotificationRepository.previews.collect { previews ->
+                _uiState.update { it.copy(notificationPreviews = previews) }
+            }
+        }
+        viewModelScope.launch {
+            NotificationRepository.mediaState.collect { media ->
+                _uiState.update { it.copy(mediaPlayback = media) }
+            }
+        }
     }
 
     fun refreshAll() {
         viewModelScope.launch {
-            val apps = withContext(Dispatchers.IO) { appRepo.loadInstalledApps() }
+            val rawApps = withContext(Dispatchers.IO) { appRepo.loadInstalledApps() }
+            val customNames = prefsRepo.getCustomAppNames()
+            val apps = rawApps.map { app ->
+                val custom = customNames[app.packageName]
+                if (custom != null) app.copy(label = custom) else app
+            }.sortedBy { it.label.lowercase() }
             val autoEnabled = prefsRepo.isAutoContextEnabled()
             val profile = if (autoEnabled) prefsRepo.getCurrentTimeProfile() else _uiState.value.activeProfile
             val pinnedMap = ContextProfile.entries
                 .filter { it != ContextProfile.ALL }
                 .associateWith { prefsRepo.getPinnedPackages(it, apps) }
             val friction = prefsRepo.getFrictionPackages(apps)
+            val hidden = prefsRepo.getHiddenPackages()
+            val iconSize = prefsRepo.getIconSizePreset()
+            val clockStyle = prefsRepo.getClockStyle()
+            val hideFavLabels = prefsRepo.isHideFavoriteLabels()
+            val showBattery = prefsRepo.isShowBatteryOnHome()
+            val showAlphabet = prefsRepo.isShowAlphabetWave()
+            val showWallpaper = prefsRepo.isShowWallpaperBackground()
+            val showCalendar = prefsRepo.isShowCalendarEvents()
+            val showNotif = prefsRepo.isShowNotificationPreviews()
+            val showMedia = prefsRepo.isShowMediaPlayer()
+            val smartSort = prefsRepo.isSmartSortEnabled()
+            val showMostUsed = prefsRepo.isShowMostUsedApps()
+            val monochrome = prefsRepo.isMonochromeIcons()
+            val fontPreset = prefsRepo.getFontPreset()
+            val showContacts = prefsRepo.isShowContactSearch()
+            val showMusicHeadphones = prefsRepo.isShowMusicOnHeadphones()
+            val twoColumn = prefsRepo.isTwoColumnLargeScreen()
+            val headphonesConnected = appRepo.isExternalAudioConnected()
+            val popupWidgets = prefsRepo.getAppPopupWidgets()
+            val iconPack = prefsRepo.getIconPackPackage()
+            val iconPacks = withContext(Dispatchers.IO) { IconPackHelper.listInstalledIconPacks(getApplication()) }
+            val fabPkg = prefsRepo.getNiagaraButtonPackage()
+            val widgetId = prefsRepo.getPinnedWidgetId()
+            val summaryPkgs = prefsRepo.getSummaryPackages()
+            val folders = prefsRepo.getFolders()
             val notes = prefsRepo.getNotes()
             val hasUsage = appRepo.hasUsageStatsPermission()
+            val usageMap = if (hasUsage) withContext(Dispatchers.IO) { appRepo.loadWeeklyUsageMillis() } else emptyMap()
+            val hasCalendar = appRepo.hasCalendarPermission()
+            val hasContacts = appRepo.hasContactsPermission()
+            val hasNotif = appRepo.hasNotificationListenerPermission()
+            val upcomingEvents = if (showCalendar && hasCalendar) {
+                withContext(Dispatchers.IO) { appRepo.loadUpcomingCalendarEvents() }
+            } else {
+                emptyList()
+            }
+            val nextEvent = upcomingEvents.firstOrNull()
             val isDefault = appRepo.isDefaultLauncher()
             val bannerDismissed = prefsRepo.isSetupBannerDismissed()
+            val tipsDismissed = prefsRepo.isTipsBannerDismissed()
 
             _uiState.update { state ->
                 state.copy(
@@ -84,10 +183,43 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     installedApps = apps,
                     pinnedByProfile = pinnedMap,
                     frictionPackages = friction,
+                    hiddenPackages = hidden,
+                    iconSizePreset = iconSize,
+                    clockStyle = clockStyle,
+                    hideFavoriteLabels = hideFavLabels,
+                    showBatteryOnHome = showBattery,
+                    showAlphabetWave = showAlphabet,
+                    showWallpaperBackground = showWallpaper,
+                    showCalendarEvents = showCalendar,
+                    showNotificationPreviews = showNotif,
+                    showMediaPlayer = showMedia,
+                    smartSortEnabled = smartSort,
+                    showMostUsedApps = showMostUsed,
+                    monochromeIcons = monochrome,
+                    fontPreset = fontPreset,
+                    showContactSearch = showContacts,
+                    showMusicOnHeadphones = showMusicHeadphones,
+                    twoColumnLargeScreen = twoColumn,
+                    isHeadphonesConnected = headphonesConnected,
+                    customAppNames = customNames,
+                    appPopupWidgets = popupWidgets,
+                    upcomingCalendarEvents = upcomingEvents,
+                    hasContactsPermission = hasContacts,
+                    selectedIconPack = iconPack,
+                    availableIconPacks = iconPacks,
+                    niagaraButtonPackage = fabPkg,
+                    pinnedWidgetId = widgetId,
+                    summaryPackages = summaryPkgs,
+                    weeklyUsageMillis = usageMap,
+                    folders = folders,
+                    nextCalendarEvent = nextEvent,
+                    hasCalendarPermission = hasCalendar,
+                    hasNotificationPermission = hasNotif,
                     notes = notes,
                     hasUsagePermission = hasUsage,
                     isDefaultLauncher = isDefault,
                     isSetupBannerDismissed = bannerDismissed,
+                    isTipsBannerDismissed = tipsDismissed,
                     commandResult = CommandBarEngine.evaluate(state.commandQuery, apps)
                 )
             }
@@ -97,20 +229,44 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun refreshTimeContextIfAuto() {
         val state = _uiState.value
         val hasUsage = appRepo.hasUsageStatsPermission()
+        val hasCalendar = appRepo.hasCalendarPermission()
+        val hasContacts = appRepo.hasContactsPermission()
+        val hasNotif = appRepo.hasNotificationListenerPermission()
+        val headphonesConnected = appRepo.isExternalAudioConnected()
         val isDefault = appRepo.isDefaultLauncher()
         val nextProfile = if (state.autoContextEnabled) prefsRepo.getCurrentTimeProfile() else state.activeProfile
         _uiState.update {
             it.copy(
                 activeProfile = nextProfile,
                 hasUsagePermission = hasUsage,
+                hasCalendarPermission = hasCalendar,
+                hasContactsPermission = hasContacts,
+                hasNotificationPermission = hasNotif,
+                isHeadphonesConnected = headphonesConnected,
                 isDefaultLauncher = isDefault
             )
+        }
+        if (state.showCalendarEvents && hasCalendar) {
+            viewModelScope.launch {
+                val events = withContext(Dispatchers.IO) { appRepo.loadUpcomingCalendarEvents() }
+                _uiState.update {
+                    it.copy(
+                        upcomingCalendarEvents = events,
+                        nextCalendarEvent = events.firstOrNull()
+                    )
+                }
+            }
         }
     }
 
     fun dismissSetupBanner() {
         prefsRepo.dismissSetupBanner()
         _uiState.update { it.copy(isSetupBannerDismissed = true) }
+    }
+
+    fun dismissTipsBanner() {
+        prefsRepo.dismissTipsBanner()
+        _uiState.update { it.copy(isTipsBannerDismissed = true) }
     }
 
     fun selectProfile(profile: ContextProfile) {
@@ -124,12 +280,25 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onCommandQueryChanged(query: String) {
-        val apps = _uiState.value.installedApps
+        val state = _uiState.value
+        val apps = state.installedApps
+        val result = CommandBarEngine.evaluate(query, apps)
         _uiState.update {
             it.copy(
                 commandQuery = query,
-                commandResult = CommandBarEngine.evaluate(query, apps)
+                commandResult = result,
+                contactMatches = if (query.isBlank()) emptyList() else it.contactMatches
             )
+        }
+        if (state.showContactSearch && state.hasContactsPermission && result is CommandResult.AppMatches && query.trim().length >= 2) {
+            viewModelScope.launch {
+                val contacts = withContext(Dispatchers.IO) { appRepo.searchContacts(query) }
+                if (_uiState.value.commandQuery == query) {
+                    _uiState.update { it.copy(contactMatches = contacts) }
+                }
+            }
+        } else {
+            _uiState.update { it.copy(contactMatches = emptyList()) }
         }
     }
 
@@ -166,9 +335,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (app.packageName in _uiState.value.frictionPackages) {
             startFrictionFlow(app)
         } else {
-            appRepo.launchApp(app.packageName)
-            clearCommandIfActive()
+            launchAppDirect(app)
         }
+    }
+
+    fun launchAppDirect(app: AppInfo) {
+        appRepo.launchApp(app.packageName)
+        clearCommandIfActive()
     }
 
     private fun startFrictionFlow(app: AppInfo) {
@@ -224,9 +397,190 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { it.copy(frictionPackages = updated) }
     }
 
+    fun toggleHiddenApp(packageName: String) {
+        val updated = prefsRepo.toggleHiddenPackage(packageName)
+        _uiState.update { it.copy(hiddenPackages = updated) }
+    }
+
+    fun setIconSizePreset(preset: IconSizePreset) {
+        prefsRepo.setIconSizePreset(preset)
+        _uiState.update { it.copy(iconSizePreset = preset) }
+    }
+
+    fun setClockStyle(style: ClockStyle) {
+        prefsRepo.setClockStyle(style)
+        _uiState.update { it.copy(clockStyle = style) }
+    }
+
+    fun setHideFavoriteLabels(hide: Boolean) {
+        prefsRepo.setHideFavoriteLabels(hide)
+        _uiState.update { it.copy(hideFavoriteLabels = hide) }
+    }
+
+    fun setShowBatteryOnHome(show: Boolean) {
+        prefsRepo.setShowBatteryOnHome(show)
+        _uiState.update { it.copy(showBatteryOnHome = show) }
+    }
+
+    fun setShowAlphabetWave(show: Boolean) {
+        prefsRepo.setShowAlphabetWave(show)
+        _uiState.update { it.copy(showAlphabetWave = show) }
+    }
+
+    fun setShowWallpaperBackground(show: Boolean) {
+        prefsRepo.setShowWallpaperBackground(show)
+        _uiState.update { it.copy(showWallpaperBackground = show) }
+    }
+
+    fun setShowCalendarEvents(show: Boolean) {
+        prefsRepo.setShowCalendarEvents(show)
+        _uiState.update { it.copy(showCalendarEvents = show) }
+        refreshTimeContextIfAuto()
+    }
+
+    fun setShowNotificationPreviews(show: Boolean) {
+        prefsRepo.setShowNotificationPreviews(show)
+        _uiState.update { it.copy(showNotificationPreviews = show) }
+    }
+
+    fun createFolder(name: String, initialPackage: String? = null) {
+        val updated = prefsRepo.createFolder(name, initialPackage)
+        _uiState.update { it.copy(folders = updated) }
+    }
+
+    fun deleteFolder(folderId: String) {
+        val updated = prefsRepo.deleteFolder(folderId)
+        _uiState.update { it.copy(folders = updated) }
+    }
+
+    fun toggleAppInFolder(folderId: String, packageName: String) {
+        val updated = prefsRepo.toggleAppInFolder(folderId, packageName)
+        _uiState.update { it.copy(folders = updated) }
+    }
+
+    fun exportBackupJson(): String = prefsRepo.exportBackupJson(_uiState.value.installedApps)
+
+    fun importBackupJson(rawJson: String): Boolean {
+        val ok = prefsRepo.importBackupJson(rawJson)
+        if (ok) refreshAll()
+        return ok
+    }
+
+    fun openNotificationListenerSettings() = appRepo.openNotificationListenerSettings()
+
+    fun setShowMediaPlayer(show: Boolean) {
+        prefsRepo.setShowMediaPlayer(show)
+        _uiState.update { it.copy(showMediaPlayer = show) }
+    }
+
+    fun setSmartSortEnabled(enabled: Boolean) {
+        prefsRepo.setSmartSortEnabled(enabled)
+        _uiState.update { it.copy(smartSortEnabled = enabled) }
+    }
+
+    fun setShowMostUsedApps(show: Boolean) {
+        prefsRepo.setShowMostUsedApps(show)
+        _uiState.update { it.copy(showMostUsedApps = show) }
+    }
+
+    fun setMonochromeIcons(enabled: Boolean) {
+        prefsRepo.setMonochromeIcons(enabled)
+        _uiState.update { it.copy(monochromeIcons = enabled) }
+    }
+
+    fun setSelectedIconPack(packageName: String?) {
+        prefsRepo.setIconPackPackage(packageName)
+        _uiState.update { it.copy(selectedIconPack = packageName) }
+    }
+
+    fun setNiagaraButtonPackage(packageName: String?) {
+        prefsRepo.setNiagaraButtonPackage(packageName)
+        _uiState.update { it.copy(niagaraButtonPackage = packageName) }
+    }
+
+    fun setPinnedWidgetId(widgetId: Int) {
+        prefsRepo.setPinnedWidgetId(widgetId)
+        _uiState.update { it.copy(pinnedWidgetId = widgetId) }
+    }
+
+    fun clearPinnedWidget() {
+        val oldId = _uiState.value.pinnedWidgetId
+        if (oldId > 0) WidgetHostHelper.deleteWidgetId(getApplication(), oldId)
+        setPinnedWidgetId(-1)
+    }
+
+    fun toggleSummaryPackage(packageName: String) {
+        val updated = prefsRepo.toggleSummaryPackage(packageName)
+        _uiState.update { it.copy(summaryPackages = updated) }
+    }
+
+    fun loadShortcutsForApp(packageName: String): List<AppShortcutItem> =
+        appRepo.loadAppShortcuts(packageName)
+
+    fun launchShortcut(packageName: String, shortcutId: String) {
+        appRepo.launchAppShortcut(packageName, shortcutId)
+    }
+
+    fun toggleMediaPlayPause() = NotificationRepository.toggleMediaPlayPause(getApplication())
+
+    fun skipMediaNext() = NotificationRepository.skipMediaNext(getApplication())
+
+    fun skipMediaPrevious() = NotificationRepository.skipMediaPrevious(getApplication())
+
+    fun dismissNotification(key: String) = NotificationRepository.dismissNotification(key)
+
+    fun sendNotificationReply(preview: NotificationPreview, replyText: String): Boolean =
+        NotificationRepository.sendQuickReply(getApplication(), preview, replyText)
+
+    fun dialContact(phoneNumber: String) {
+        appRepo.dialContact(phoneNumber)
+        clearCommandIfActive()
+    }
+
+    fun setFontPreset(preset: FontPreset) {
+        prefsRepo.setFontPreset(preset)
+        _uiState.update { it.copy(fontPreset = preset) }
+    }
+
+    fun setShowContactSearch(show: Boolean) {
+        prefsRepo.setShowContactSearch(show)
+        _uiState.update { it.copy(showContactSearch = show) }
+    }
+
+    fun setShowMusicOnHeadphones(show: Boolean) {
+        prefsRepo.setShowMusicOnHeadphones(show)
+        _uiState.update { it.copy(showMusicOnHeadphones = show) }
+    }
+
+    fun setTwoColumnLargeScreen(enabled: Boolean) {
+        prefsRepo.setTwoColumnLargeScreen(enabled)
+        _uiState.update { it.copy(twoColumnLargeScreen = enabled) }
+    }
+
+    fun setCustomAppName(packageName: String, newName: String?) {
+        prefsRepo.setCustomAppName(packageName, newName)
+        refreshAll()
+    }
+
+    fun setAppPopupWidget(packageName: String, widgetId: Int) {
+        val updated = prefsRepo.setAppPopupWidget(packageName, widgetId)
+        _uiState.update { it.copy(appPopupWidgets = updated) }
+    }
+
+    fun clearAppPopupWidget(packageName: String) {
+        val oldId = _uiState.value.appPopupWidgets[packageName] ?: -1
+        if (oldId > 0) WidgetHostHelper.deleteWidgetId(getApplication(), oldId)
+        val updated = prefsRepo.setAppPopupWidget(packageName, -1)
+        _uiState.update { it.copy(appPopupWidgets = updated) }
+    }
+
     fun openUsageSettings() = appRepo.openUsageStatsSettings()
 
     fun openDefaultLauncherSettings() = appRepo.openDefaultLauncherSettings()
+
+    fun openAppInfo(packageName: String) = appRepo.openAppInfo(packageName)
+
+    fun uninstallApp(packageName: String) = appRepo.uninstallApp(packageName)
 
     private fun clearCommandIfActive() {
         if (_uiState.value.commandQuery.isNotEmpty()) {

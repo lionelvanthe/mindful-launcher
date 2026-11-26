@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Fix `AppDrawerScreen` nested scroll crash (`feat-006`) on Stillness Launcher.
-- Current status: Fixed and verified via `.\init.ps1`, `lintDebug`, and live device test on `1f5efaa4`.
-- Branch / commit: `master` (ready to commit).
+- Goal: Complete Offline Niagara-style Launcher Parity (Contacts, Calendar Agenda, Rename, Font Picker, Headphone Music Suggestions, 2-Column Tablet Layout, Per-App Pop-up Widgets, Discoverability Tips).
+- Current status: Implemented and verified via `.\init.ps1`, `lintDebug`, and live install on `emulator-5554`.
+- Branch / commit: `master` (ready for user review / commit).
 
 ## Completed This Session
 

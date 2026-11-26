@@ -2,8 +2,8 @@
 
 ## Current State
 
-**Last Updated:** 2026-11-26 09:21
-**Active Feature:** `feat-006` (Fix AppDrawerScreen Nested Scroll Layout — Completed) — Next: `feat-005` (Automated UI and Repository Test Coverage)
+**Last Updated:** 2026-11-26 14:13
+**Active Feature:** Complete Offline Niagara Launcher Parity Achieved — Next: `feat-005` (Automated UI and Repository Test Coverage)
 
 ## Status
 
@@ -51,6 +51,11 @@
 - [x] Fixed startup crash on API 26–28 (verified on `Mi_MIX_2` / Android 9 API 28): guarded `AppOpsManager.unsafeCheckOpNoThrow` with `Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q` and fell back to `checkOpNoThrow` in `AppRepository.kt`
 - [x] Fixed `feat-006` nested scroll crash in `AppDrawerScreen` (`AppDrawerAndSettings.kt`): removed outer `.verticalScroll(rememberScrollState())` and bounded `LazyColumn` with `Modifier.weight(1f).fillMaxWidth()` + `imePadding()`
 - [x] Verified `.\init.ps1`, `gradle lintDebug --no-daemon`, and live AppDrawer navigation on device `1f5efaa4`
+- [x] Completed Niagara-inspired UI Polish (Parts 1–4): bundled OFL `kumbh_sans_vf.ttf` & `nunito_sans_vf.ttf`, added `StillnessTheme.kt` (`StillnessTypography`), upgraded `AtAGlanceHeader` and pill Command Bar in `HomeScreen.kt`, added `StillnessEffects.kt` (`pressScale`, `verticalFadingEdge`, `AlphabetScrubber`), and integrated `AlphabetScrubber` + theme tokens in `AppDrawerAndSettings.kt`; verified via `.\init.ps1` and `lintDebug` (BUILD SUCCESSFUL)
+- [x] Rebuilt `HomeScreen.kt` as a pure Niagara-style single-screen launcher (Favorites + inline A-Z Alphabet Wave + real `AppIcon` with LRU cache in `AppIcon.kt` + long-press `NiagaraAppOptionsDialog` for Pin/App Info/Uninstall); fixed `AlphabetScrubber` initial `coerceIn` range and `AppIcon` lint; verified via `.\init.ps1` and `lintDebug` (BUILD SUCCESSFUL)
+- [x] Completed Niagara Phase 2: added `LauncherFolder` pop-ups (`NiagaraFolderPopupDialog`, `AddToFolderDialog`), local `READ_CALENDAR` At-a-Glance event preview, `NiagaraNotificationListener` inline notification previews (`NotificationRepository.kt`), transparent wallpaper mode (`FLAG_SHOW_WALLPAPER`), and JSON Backup/Restore in `PreferencesRepository.kt` & `AppDrawerAndSettings.kt`; verified via `.\init.ps1` and `lintDebug` (BUILD SUCCESSFUL)
+- [x] Completed Full Offline Niagara Suite: added `MediaPlaybackState` At-a-Glance controls (`NotificationRepository.kt`), interactive `NotificationPopupDialog` with `RemoteInput` quick reply & `NotificationSummaryDialog` (`HomeDialogs.kt`), `LauncherApps` App Shortcuts (`AppRepository.kt`), `WidgetHostHelper.kt` (`AppWidgetHost`), `IconPackHelper.kt` + monochrome icons (`AppIcon.kt`), `UsageStatsManager` Smart Sort & Often-Used apps, and customizable Niagara FAB (`NiagaraFabActionDialog`); verified via `.\init.ps1`, `lintDebug`, and live launch on `emulator-5554`
+- [x] Added final offline Niagara parity features & discoverability: `READ_CONTACTS` Contact Search + dialer (`AppRepository.kt`), 7-day `CalendarAgendaDialog`, per-app `RenameAppDialog`, `FontPreset` switcher (`StillnessTheme.kt`), `AudioManager` headphone music app suggestions, 2-column large-screen layout (`HomeScreen.kt`), per-app Pop-up Widgets (`HomeDialogs.kt`), and `QuickTipsDialog` + tappable notification pills; verified via `.\init.ps1`, `lintDebug`, and `emulator-5554` install
 
 ## Notes for Next Session
 
