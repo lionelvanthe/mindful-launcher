@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.indie.mindfullauncher.domain.CommandBarEngineTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-23T15:54:47.750Z" hostname="MACH" time="0.08">
-  <properties/>
-  <testcase name="evaluates math expressions accurately" classname="com.indie.mindfullauncher.domain.CommandBarEngineTest" time="0.056"/>
-  <testcase name="parses quick note with exclamation prefix" classname="com.indie.mindfullauncher.domain.CommandBarEngineTest" time="0.002"/>
-  <testcase name="prioritizes prefix app matches" classname="com.indie.mindfullauncher.domain.CommandBarEngineTest" time="0.003"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "features": [
+    {
+      "id": "feat-001",
+      "name": "Context-Aware Home Screen",
+      "description": "Display time-aware context profiles (WORK, EVENING, SLEEP, ALL) with automatic time switching, manual filter chips, and onboarding setup card.",
+      "dependencies": [],
+      "status": "done",
+      "evidence": "Implemented in HomeScreen.kt, LauncherViewModel.kt, PreferencesRepository.kt; debug APK builds and unit tests pass."
+    },
+    {
+      "id": "feat-002",
+      "name": "Command Bar Engine",
+      "description": "Support prefix-prioritized app search, inline math evaluation, and '! <note>' quick to-do capture.",
+      "dependencies": ["feat-001"],
+      "status": "done",
+      "evidence": "Implemented in CommandBarEngine.kt; verified by CommandBarEngineTest.kt via gradle testDebugUnitTest."
+    },
+    {
+      "id": "feat-003",
+      "name": "5-Second Gentle Friction Dialog",
+      "description": "Show a 5-second mindful pause dialog with today's foreground usage minutes via UsageStatsManager before launching distracting apps.",
+      "dependencies": ["feat-001"],
+      "status": "done",
+      "evidence": "Implemented in FrictionDialog.kt, AppRepository.kt, LauncherViewModel.kt; verified in debug build."
+    },
+    {
+      "id": "feat-004",
+      "name": "App Drawer and Zero-Telemetry Settings",
+      "description": "Provide searchable App Drawer with per-context pinning and friction toggles, plus Settings screen for auto-context and system permissions.",
+      "dependencies": ["feat-001", "feat-003"],
+      "status": "done",
+      "evidence": "Implemented in AppDrawerAndSettings.kt and MainActivity.kt; verified in debug build."
+    },
+    {
+      "id": "feat-005",
+      "name": "Automated UI and Repository Test Coverage",
+      "description": "Add Compose UI tests (HomeScreen, GentleFrictionDialog, SettingsScreen) and PreferencesRepository instrumented/unit tests.",
+      "dependencies": ["feat-004"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-006",
+      "name": "Fix AppDrawerScreen Nested Scroll Layout",
+      "description": "Replace nested verticalScroll + LazyColumn in AppDrawerScreen with a single bounded scrollable layout to prevent Compose measurement crashes.",
+      "dependencies": ["feat-004"],
+      "status": "not-started",
+      "evidence": ""
+    },
+    {
+      "id": "feat-007",
+      "name": "Pro Unlock and v2 Context Triggers",
+      "description": "Implement one-time Pro unlock split and optional Wi-Fi/location context triggers once product decisions in PRODUCT.md are finalized.",
+      "dependencies": ["feat-005", "feat-006"],
+      "status": "not-started",
+      "evidence": ""
+    }
+  ]
+}
