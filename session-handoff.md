@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Integrate Harness Engineering into `mindful-launcher` following `walkinglabs/learn-harness-engineering`.
-- Current status: Complete. All five harness subsystems are in place and verified.
-- Branch / commit: `master` (based on `32eb6eb first commit`).
+- Goal: Fix startup crash when opening Stillness Launcher on Android 9 (`Mi_MIX_2`, API 28).
+- Current status: Fixed and verified on device (`1f5efaa4`), `.\init.ps1`, and `lintDebug`.
+- Branch / commit: `master` (uncommitted fix in `AppRepository.kt`, `progress.md`, `session-handoff.md`).
 
 ## Completed This Session
 

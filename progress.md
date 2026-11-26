@@ -2,8 +2,8 @@
 
 ## Current State
 
-**Last Updated:** 2026-11-26 09:05
-**Active Feature:** Harness Integration (Completed) — Next: `feat-005` (Automated UI and Repository Test Coverage)
+**Last Updated:** 2026-11-26 09:13
+**Active Feature:** Bugfix — Startup crash on Android 9 / API < 29 (`AppRepository.hasUsageStatsPermission`) — Next: `feat-005` or `feat-006`
 
 ## Status
 
@@ -48,7 +48,8 @@
 ## Evidence of Completion
 
 - [x] Baseline unit tests & debug APK build pass via `.\init.ps1`
-- [x] Harness structure validated via `harness-creator/scripts/validate-harness.mjs`
+- [x] Fixed startup crash on API 26–28 (verified on `Mi_MIX_2` / Android 9 API 28): guarded `AppOpsManager.unsafeCheckOpNoThrow` with `Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q` and fell back to `checkOpNoThrow` in `AppRepository.kt`
+- [x] Verified `.\init.ps1` (`testDebugUnitTest` + `assembleDebug`), `gradle lintDebug --no-daemon`, and live launch on device `1f5efaa4`
 
 ## Notes for Next Session
 
