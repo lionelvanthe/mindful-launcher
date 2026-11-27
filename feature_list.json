@@ -88,6 +88,14 @@
       "dependencies": ["feat-010"],
       "status": "done",
       "evidence": "Implemented BuiltInContextConfig & CustomContextProfile in LauncherModels.kt, AppRepository.kt, PreferencesRepository.kt, LauncherViewModel.kt, HomeDialogs.kt (ContextSwitcherSheet + ContextModeEditorSheet), HomeScreen.kt, MainActivity.kt; verified via init.ps1, lintDebug, and connectedDebugAndroidTest (15/15 passed on emulator-5554 only)."
+    },
+    {
+      "id": "feat-012",
+      "name": "Raycast / Spotlight Command Bar Upgrade",
+      "description": "Upgrade CommandBarEngine with Vietnamese diacritic-insensitive app search, offline unit/temperature/data conversions, and system quick actions (/flash, /timer, /focus, /wifi, /bt, /dnd, /help).",
+      "dependencies": ["feat-002"],
+      "status": "done",
+      "evidence": "Implemented in CommandBarEngine.kt, AppRepository.kt, LauncherViewModel.kt, HomeScreen.kt; verified by CommandBarEngineTest.kt, init.ps1, lintDebug, and connectedDebugAndroidTest (16/16 passed on emulator-5554 only)."
     }
   ]
 }

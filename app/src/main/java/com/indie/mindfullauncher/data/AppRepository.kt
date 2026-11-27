@@ -11,12 +11,15 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Process
+import android.provider.AlarmClock
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.Settings
@@ -29,6 +32,57 @@ import com.indie.mindfullauncher.model.ContactMatch
 import java.util.Calendar
 
 class AppRepository(private val context: Context) {
+
+    private var isTorchOn = false
+
+    fun toggleFlashlight(): Boolean {
+        val cm = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager ?: return false
+        return runCatching {
+            val camId = cm.cameraIdList.firstOrNull { id ->
+                cm.getCameraCharacteristics(id)
+                    .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            } ?: return false
+            isTorchOn = !isTorchOn
+            cm.setTorchMode(camId, isTorchOn)
+            true
+        }.getOrDefault(false)
+    }
+
+    fun openWifiSettings() {
+        runCatching {
+            context.startActivity(
+                Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+
+    fun openBluetoothSettings() {
+        runCatching {
+            context.startActivity(
+                Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+
+    fun openSoundSettings() {
+        runCatching {
+            context.startActivity(
+                Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+
+    fun startClockTimer(seconds: Int): Boolean {
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            putExtra(AlarmClock.EXTRA_LENGTH, seconds.coerceAtLeast(1))
+            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return runCatching {
+            context.startActivity(intent)
+            true
+        }.getOrDefault(false)
+    }
 
     fun loadInstalledApps(): List<AppInfo> {
         val pm = context.packageManager

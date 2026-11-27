@@ -599,4 +599,65 @@ class StillnessLauncherUiTest {
         assertEquals(ContextProfile.WORK, savedBuiltIn?.profile)
         assertEquals(true, savedBuiltIn?.restrictOtherApps)
     }
+
+    @Test
+    fun homeScreen_displaysRaycastConversionAndSystemActionCards() {
+        var submitted = false
+        val state = LauncherUiState(
+            installedApps = sampleApps,
+            showWallpaperBackground = false,
+            isDefaultLauncher = true,
+            commandQuery = "/timer 15m",
+            commandResult = CommandResult.SystemActionResult(
+                actionId = "timer",
+                title = "Đặt hẹn giờ 15 phút",
+                subtitle = "Nhấn Enter hoặc chạm để mở Đồng hồ",
+                argInt = 900
+            )
+        )
+
+        composeRule.setContent {
+            StillnessTheme {
+                HomeScreen(
+                    state = state,
+                    onCommandQueryChanged = {},
+                    onSubmitCommand = { submitted = true },
+                    onAppClick = {},
+                    onDialContact = {},
+                    onToggleFavorite = {},
+                    onMoveFavorite = { _, _ -> },
+                    onRerollUtility = {},
+                    onToggleHidden = {},
+                    onToggleSummary = {},
+                    onRenameApp = { _, _ -> },
+                    onPickPopupWidget = {},
+                    onClearPopupWidget = {},
+                    onCreateFolder = { _, _ -> },
+                    onToggleAppInFolder = { _, _ -> },
+                    onRenameFolder = { _, _ -> },
+                    onDeleteFolder = {},
+                    onRemovePinnedWidget = {},
+                    onLoadShortcuts = { emptyList() },
+                    onLaunchShortcut = { _, _ -> },
+                    onSetNiagaraButtonPackage = {},
+                    onToggleMediaPlayPause = {},
+                    onSkipMediaNext = {},
+                    onSkipMediaPrevious = {},
+                    onDismissNotification = {},
+                    onSendNotificationReply = { _, _ -> false },
+                    onOpenAppInfo = {},
+                    onUninstallApp = {},
+                    onToggleNote = {},
+                    onDeleteNote = {},
+                    onOpenSettings = {},
+                    onOpenDefaultLauncher = {},
+                    onDismissSetupBanner = {},
+                    onDismissTipsBanner = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Đặt hẹn giờ 15 phút").assertIsDisplayed().performClick()
+        assertTrue(submitted)
+    }
 }

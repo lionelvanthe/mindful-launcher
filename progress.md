@@ -2,8 +2,8 @@
 
 ## Current State
 
-**Last Updated:** 2026-11-27 14:23
-**Active Feature:** `feat-011` (Rich Context Mode Editor for Built-In & Custom Contexts) Complete — Next: `feat-007` (Pro Unlock once product decisions are finalized)
+**Last Updated:** 2026-11-27 14:40
+**Active Feature:** `feat-012` (Raycast / Spotlight Command Bar Upgrade) Complete — Next: `feat-007` (Pro Unlock once product decisions are finalized)
 
 ## Status
 
@@ -63,6 +63,7 @@
 - [x] Completed `feat-009` (`True Context-Aware Home Screen & Focus Timer`): made `HomeScreen` Favorites & ordering per-context (`WORK`/`EVENING`/`SLEEP`), added Context & 25m Focus Pomodoro strip (`Tập trung 25p` / countdown, enforcing Friction on non-Work apps during Focus), added zero-permission local triggers (`isDeviceCharging` after 21:00 or `isDndActive` → `SLEEP`, plus monochrome icons in `SLEEP`), and added Settings toggles (`AppDrawerAndSettings.kt`); verified via `.\init.ps1`, `lintDebug`, and `connectedDebugAndroidTest` (**11/11 passed on `emulator-5554`**)
 - [x] Completed `feat-010` (`Custom Context Profiles & Per-Context App Picker`): added `CustomContextProfile` model (`LauncherModels.kt`), JSON persistence (`PreferencesRepository.kt`), `selectCustomContext`/`createCustomContext`/`deleteCustomContext`/`setAppsForActiveContext` (`LauncherViewModel.kt`), `ContextAppPickerDialog` & `CreateCustomContextDialog` (`HomeDialogs.kt`), and `+ Ngữ cảnh` / `Chọn app` chips on `HomeScreen.kt`; verified via `.\init.ps1`, `lintDebug`, and `connectedDebugAndroidTest` (**12/12 passed on `emulator-5554`**)
 - [x] Completed `feat-011` (`Rich Context Mode Editor`): upgraded both built-in (`WORK`/`EVENING`/`SLEEP` via `BuiltInContextConfig`) and custom (`CustomContextProfile`) contexts with color presets, auto-triggers (headphones/Bluetooth, charging, time range), `restrictOtherApps` (5s friction on non-mode apps), `hideNotifications`, `monochromeIcons`, `oledPureBlack`, and `muteMediaOnEnter`; built `ContextModeEditorSheet` (`HomeDialogs.kt`) and wired Ambient Glow + frameless gesture-first Context + Zen Focus Mode (`HomeScreen.kt`, `MainActivity.kt`); verified via `.\init.ps1`, `lintDebug`, and `connectedDebugAndroidTest` (**15/15 passed on `emulator-5554` only**)
+- [x] Completed `feat-012` (`Raycast / Spotlight Command Bar Upgrade`): added Vietnamese diacritic-insensitive search (`normalizeVietnamese`), offline unit/temperature/data conversions (`ConversionResult`), and system quick actions (`/flash`, `/timer`, `/focus`, `/wifi`, `/bt`, `/dnd`, `/help`) in `CommandBarEngine.kt`, `AppRepository.kt`, `LauncherViewModel.kt`, and `HomeScreen.kt`; verified via `.\init.ps1` (`CommandBarEngineTest`), `lintDebug`, and `connectedDebugAndroidTest` (**16/16 passed on `emulator-5554` only**)
 
 ## Notes for Next Session
 

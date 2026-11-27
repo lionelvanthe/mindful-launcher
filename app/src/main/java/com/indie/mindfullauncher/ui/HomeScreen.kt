@@ -1000,6 +1000,54 @@ fun HomeScreen(
                             }
                         }
                     }
+                    is CommandResult.ConversionResult -> {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.TopStart)
+                                .clickable { clipboard.setText(AnnotatedString(res.formattedValue)) },
+                            shape = RoundedCornerShape(16.dp),
+                            color = colors.surface
+                        ) {
+                            Column(modifier = Modifier.padding(18.dp)) {
+                                Text(
+                                    text = "${res.fromExpr} (chạm để sao chép)",
+                                    color = colors.onSurfaceVariant,
+                                    style = typography.labelMedium
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "${res.formattedValue} ${res.unitLabel}",
+                                    color = colors.primary,
+                                    style = typography.headlineMedium
+                                )
+                            }
+                        }
+                    }
+                    is CommandResult.SystemActionResult -> {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.TopStart)
+                                .clickable { onSubmitCommand() },
+                            shape = RoundedCornerShape(16.dp),
+                            color = colors.surface
+                        ) {
+                            Column(modifier = Modifier.padding(18.dp)) {
+                                Text(
+                                    text = res.title,
+                                    color = colors.primary,
+                                    style = typography.titleMedium
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = res.subtitle,
+                                    color = colors.onSurfaceVariant,
+                                    style = typography.bodySmall
+                                )
+                            }
+                        }
+                    }
                     is CommandResult.UtilityResult -> {
                         Surface(
                             modifier = Modifier

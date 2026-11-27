@@ -593,11 +593,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     }
                 }
             }
+            is CommandResult.SystemActionResult -> {
+                executeSystemAction(res)
+            }
             is CommandResult.AppMatches -> {
                 res.apps.firstOrNull()?.let { onAppClicked(it) }
             }
             else -> Unit
         }
+    }
+
+    private fun executeSystemAction(action: CommandResult.SystemActionResult) {
+        when (action.actionId) {
+            "flash" -> appRepo.toggleFlashlight()
+            "wifi" -> appRepo.openWifiSettings()
+            "bluetooth" -> appRepo.openBluetoothSettings()
+            "dnd" -> appRepo.openSoundSettings()
+            "timer" -> appRepo.startClockTimer(action.argInt ?: 300)
+            "focus" -> startFocusTimer(action.argInt ?: 25)
+            "help" -> return
+        }
+        clearCommandIfActive()
     }
 
     fun toggleNoteDone(id: String) {
