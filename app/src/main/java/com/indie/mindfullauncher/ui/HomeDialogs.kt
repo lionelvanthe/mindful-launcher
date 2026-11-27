@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PushPin
@@ -301,6 +302,7 @@ fun NiagaraAppOptionsDialog(
     canMoveDown: Boolean = false,
     isHidden: Boolean,
     isSummarized: Boolean,
+    isFrictionEnabled: Boolean = false,
     iconPackPackage: String?,
     monochromeIcons: Boolean,
     onDismiss: () -> Unit,
@@ -313,6 +315,7 @@ fun NiagaraAppOptionsDialog(
     onPickPopupWidget: () -> Unit,
     onClearPopupWidget: () -> Unit,
     onToggleSummary: () -> Unit,
+    onToggleFriction: () -> Unit = {},
     onToggleHidden: () -> Unit,
     onOpenAppInfo: () -> Unit,
     onUninstall: () -> Unit
@@ -423,6 +426,11 @@ fun NiagaraAppOptionsDialog(
                 icon = Icons.Default.NotificationsOff,
                 label = if (isSummarized) "Bỏ khỏi Tóm tắt thông báo" else "Gom vào Tóm tắt thông báo",
                 onClick = onToggleSummary
+            )
+            DialogOptionRow(
+                icon = Icons.Default.HourglassBottom,
+                label = if (isFrictionEnabled) "Tắt khoảng dừng 5 giây" else "Bật khoảng dừng 5 giây (Chống nghiện)",
+                onClick = onToggleFriction
             )
             DialogOptionRow(
                 icon = Icons.Default.VisibilityOff,

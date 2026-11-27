@@ -105,13 +105,15 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         onCommandQueryChanged = vm::onCommandQueryChanged,
                         onSubmitCommand = vm::submitCommand,
-                        onAppClick = vm::launchAppDirect,
+                        onAppClick = vm::onAppClicked,
                         onDialContact = vm::dialContact,
                         onToggleFavorite = { pkg -> vm.togglePin(ContextProfile.WORK, pkg) },
                         onMoveFavorite = vm::moveFavorite,
                         onRerollUtility = vm::rerollCommandUtility,
                         onToggleHidden = vm::toggleHiddenApp,
                         onToggleSummary = vm::toggleSummaryPackage,
+                        onToggleFriction = vm::toggleFrictionApp,
+                        onDismissPostSessionNudge = vm::dismissPostSessionNudge,
                         onRenameApp = vm::setCustomAppName,
                         onPickPopupWidget = { pkg ->
                             val (id, pickIntent) = WidgetHostHelper.createPickIntent(this@MainActivity)
@@ -196,7 +198,8 @@ class MainActivity : ComponentActivity() {
                     GentleFrictionDialog(
                         pending = pending,
                         onDismiss = vm::dismissFriction,
-                        onConfirmLaunch = vm::confirmFrictionLaunch
+                        onConfirmLaunch = vm::confirmFrictionLaunch,
+                        onSelectIntention = vm::selectFrictionIntention
                     )
                 }
             }
@@ -205,6 +208,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        launcherViewModel?.refreshTimeContextIfAuto()
+        launcherViewModel?.onLauncherResumed()
     }
 }

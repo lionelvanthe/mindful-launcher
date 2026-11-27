@@ -114,5 +114,12 @@ data class QuickNote(
 
 data class AppUsageSummary(
     val minutesToday: Int,
+    val opensToday: Int = 0,
     val hasPermission: Boolean
+)
+
+data class PostSessionNudge(
+    val app: AppInfo,
+    val sessionMinutes: Int,
+    val opensToday: Int
 )

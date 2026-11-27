@@ -205,6 +205,35 @@ class StillnessLauncherUiTest {
     }
 
     @Test
+    fun gentleFrictionDialog_showsOpenCountResistedAndIntentionSelection() {
+        var selectedIntention: String? = null
+        composeRule.setContent {
+            StillnessTheme {
+                GentleFrictionDialog(
+                    pending = PendingFriction(
+                        app = AppInfo("TikTok", "com.zhiliaoapp.musically"),
+                        minutesToday = 24,
+                        opensToday = 9,
+                        resistedToday = 3,
+                        hasUsagePermission = true,
+                        secondsRemaining = 0,
+                        selectedIntention = "Tra cứu"
+                    ),
+                    onDismiss = {},
+                    onConfirmLaunch = {},
+                    onSelectIntention = { selectedIntention = it }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Hôm nay: 24 phút · Lần mở thứ 9").assertIsDisplayed()
+        composeRule.onNodeWithText("Đã giữ bình tĩnh 3 lần hôm nay").assertIsDisplayed()
+        composeRule.onNodeWithText("Mở TikTok (Tra cứu)").assertIsEnabled()
+        composeRule.onNodeWithText("Nhắn tin").performClick()
+        assertEquals("Nhắn tin", selectedIntention)
+    }
+
+    @Test
     fun settingsScreen_selectsClockIconShapeAccentAndShowsZeroTelemetry() {
         var selectedClock: ClockStyle? = null
         var selectedShape: IconShapePreset? = null

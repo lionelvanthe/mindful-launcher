@@ -12,7 +12,10 @@ import com.indie.mindfullauncher.model.LauncherFolder
 import com.indie.mindfullauncher.model.QuickNote
 import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 class PreferencesRepository(context: Context) {
@@ -526,6 +529,54 @@ class PreferencesRepository(context: Context) {
         return current
     }
 
+    private fun todayDateKey(): String =
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
+    fun getFrictionResistedToday(): Int {
+        val today = todayDateKey()
+        if (prefs.getString(KEY_FRICTION_STATS_DATE, null) != today) {
+            return 0
+        }
+        return prefs.getInt(KEY_FRICTION_RESISTED_TODAY, 0)
+    }
+
+    fun incrementFrictionResistedToday(): Int {
+        val today = todayDateKey()
+        val next = getFrictionResistedToday() + 1
+        prefs.edit()
+            .putString(KEY_FRICTION_STATS_DATE, today)
+            .putInt(KEY_FRICTION_RESISTED_TODAY, next)
+            .apply()
+        return next
+    }
+
+    fun getLocalAppOpensToday(packageName: String): Int {
+        val today = todayDateKey()
+        if (prefs.getString(KEY_FRICTION_STATS_DATE, null) != today) {
+            return 0
+        }
+        val raw = prefs.getString(KEY_LOCAL_APP_OPENS_TODAY, null) ?: return 0
+        return runCatching { JSONObject(raw).optInt(packageName, 0) }.getOrDefault(0)
+    }
+
+    fun incrementLocalAppOpensToday(packageName: String): Int {
+        val today = todayDateKey()
+        val obj = if (prefs.getString(KEY_FRICTION_STATS_DATE, null) == today) {
+            runCatching {
+                JSONObject(prefs.getString(KEY_LOCAL_APP_OPENS_TODAY, null) ?: "{}")
+            }.getOrElse { JSONObject() }
+        } else {
+            JSONObject()
+        }
+        val next = obj.optInt(packageName, 0) + 1
+        obj.put(packageName, next)
+        prefs.edit()
+            .putString(KEY_FRICTION_STATS_DATE, today)
+            .putString(KEY_LOCAL_APP_OPENS_TODAY, obj.toString())
+            .apply()
+        return next
+    }
+
     fun getNotes(): List<QuickNote> {
         val raw = prefs.getString(KEY_NOTES, null) ?: return emptyList()
         return try {
@@ -607,6 +658,9 @@ class PreferencesRepository(context: Context) {
         private const val KEY_TIPS_BANNER_DISMISSED = "tips_banner_dismissed"
         private const val KEY_PINNED_PREFIX = "pinned_"
         private const val KEY_FRICTION_APPS = "friction_apps"
+        private const val KEY_FRICTION_STATS_DATE = "friction_stats_date"
+        private const val KEY_FRICTION_RESISTED_TODAY = "friction_resisted_today"
+        private const val KEY_LOCAL_APP_OPENS_TODAY = "local_app_opens_today"
         private const val KEY_HIDDEN_APPS = "hidden_apps"
         private const val KEY_ICON_SIZE = "icon_size_preset"
         private const val KEY_ICON_SHAPE = "icon_shape_preset"

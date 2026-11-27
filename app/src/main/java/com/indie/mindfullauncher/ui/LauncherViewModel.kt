@@ -23,6 +23,7 @@ import com.indie.mindfullauncher.model.IconSizePreset
 import com.indie.mindfullauncher.model.LauncherFolder
 import com.indie.mindfullauncher.model.MediaPlaybackState
 import com.indie.mindfullauncher.model.NotificationPreview
+import com.indie.mindfullauncher.model.PostSessionNudge
 import com.indie.mindfullauncher.model.QuickNote
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,8 +38,11 @@ import kotlinx.coroutines.withContext
 data class PendingFriction(
     val app: AppInfo,
     val minutesToday: Int,
+    val opensToday: Int = 0,
+    val resistedToday: Int = 0,
     val hasUsagePermission: Boolean,
-    val secondsRemaining: Int = 5
+    val secondsRemaining: Int = 5,
+    val selectedIntention: String? = null
 )
 
 data class LauncherUiState(
@@ -91,6 +95,8 @@ data class LauncherUiState(
     val commandQuery: String = "",
     val commandResult: CommandResult = CommandResult.Empty,
     val pendingFriction: PendingFriction? = null,
+    val postSessionNudge: PostSessionNudge? = null,
+    val frictionResistedToday: Int = 0,
     val hasUsagePermission: Boolean = false,
     val isDefaultLauncher: Boolean = false,
     val isSetupBannerDismissed: Boolean = false,
@@ -113,6 +119,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val uiState: StateFlow<LauncherUiState> = _uiState.asStateFlow()
 
     private var frictionTimerJob: Job? = null
+    private var lastFrictionLaunchPkg: String? = null
+    private var lastFrictionLaunchAtMillis: Long = 0L
 
     init {
         refreshAll()
@@ -187,6 +195,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val isDefault = appRepo.isDefaultLauncher()
             val bannerDismissed = prefsRepo.isSetupBannerDismissed()
             val tipsDismissed = prefsRepo.isTipsBannerDismissed()
+            val resistedToday = prefsRepo.getFrictionResistedToday()
 
             _uiState.update { state ->
                 state.copy(
@@ -233,6 +242,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     hasCalendarPermission = hasCalendar,
                     hasNotificationPermission = hasNotif,
                     notes = notes,
+                    frictionResistedToday = resistedToday,
                     hasUsagePermission = hasUsage,
                     isDefaultLauncher = isDefault,
                     isSetupBannerDismissed = bannerDismissed,
@@ -364,14 +374,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun startFrictionFlow(app: AppInfo) {
         frictionTimerJob?.cancel()
         val usage = appRepo.getTodayUsageSummary(app.packageName)
+        val opensToday = if (usage.hasPermission && usage.opensToday > 0) {
+            usage.opensToday
+        } else {
+            prefsRepo.getLocalAppOpensToday(app.packageName) + 1
+        }
+        val resistedToday = prefsRepo.getFrictionResistedToday()
         _uiState.update {
             it.copy(
                 pendingFriction = PendingFriction(
                     app = app,
                     minutesToday = usage.minutesToday,
+                    opensToday = opensToday,
+                    resistedToday = resistedToday,
                     hasUsagePermission = usage.hasPermission,
                     secondsRemaining = 5
-                )
+                ),
+                frictionResistedToday = resistedToday
             )
         }
         frictionTimerJob = viewModelScope.launch {
@@ -385,10 +404,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun selectFrictionIntention(intention: String?) {
+        _uiState.update { state ->
+            val current = state.pendingFriction ?: return@update state
+            val next = if (current.selectedIntention == intention) null else intention
+            state.copy(pendingFriction = current.copy(selectedIntention = next))
+        }
+    }
+
     fun confirmFrictionLaunch() {
         val pending = _uiState.value.pendingFriction ?: return
         if (pending.secondsRemaining > 0) return
         frictionTimerJob?.cancel()
+        lastFrictionLaunchPkg = pending.app.packageName
+        lastFrictionLaunchAtMillis = System.currentTimeMillis()
+        prefsRepo.incrementLocalAppOpensToday(pending.app.packageName)
         _uiState.update { it.copy(pendingFriction = null) }
         appRepo.launchApp(pending.app.packageName)
         clearCommandIfActive()
@@ -396,7 +426,42 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun dismissFriction() {
         frictionTimerJob?.cancel()
-        _uiState.update { it.copy(pendingFriction = null) }
+        val resisted = prefsRepo.incrementFrictionResistedToday()
+        _uiState.update {
+            it.copy(
+                pendingFriction = null,
+                frictionResistedToday = resisted
+            )
+        }
+    }
+
+    fun onLauncherResumed() {
+        refreshTimeContextIfAuto()
+        val pkg = lastFrictionLaunchPkg ?: return
+        val launchedAt = lastFrictionLaunchAtMillis
+        lastFrictionLaunchPkg = null
+        val elapsedMinutes = ((System.currentTimeMillis() - launchedAt) / 60_000L).toInt()
+        if (elapsedMinutes < 10) return
+        val app = _uiState.value.installedApps.firstOrNull { it.packageName == pkg } ?: return
+        val usage = appRepo.getTodayUsageSummary(pkg)
+        val opensToday = if (usage.hasPermission && usage.opensToday > 0) {
+            usage.opensToday
+        } else {
+            prefsRepo.getLocalAppOpensToday(pkg)
+        }
+        _uiState.update {
+            it.copy(
+                postSessionNudge = PostSessionNudge(
+                    app = app,
+                    sessionMinutes = elapsedMinutes,
+                    opensToday = opensToday
+                )
+            )
+        }
+    }
+
+    fun dismissPostSessionNudge() {
+        _uiState.update { it.copy(postSessionNudge = null) }
     }
 
     fun togglePin(profile: ContextProfile, packageName: String) {

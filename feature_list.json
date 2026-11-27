@@ -56,6 +56,14 @@
       "dependencies": ["feat-005", "feat-006"],
       "status": "not-started",
       "evidence": ""
+    },
+    {
+      "id": "feat-008",
+      "name": "Active Anti-Addiction Gentle Friction System",
+      "description": "Upgrade Gentle Friction with HomeScreen launch interception, daily open count & resisted counter, breathing circle animation, 1-tap intention chips, long-press friction toggle, and post-session reflection nudge.",
+      "dependencies": ["feat-005", "feat-006"],
+      "status": "done",
+      "evidence": "Implemented in LauncherModels.kt, AppRepository.kt, PreferencesRepository.kt, LauncherViewModel.kt, FrictionDialog.kt, HomeDialogs.kt, HomeScreen.kt, MainActivity.kt; verified via init.ps1 (testDebugUnitTest + assembleDebug), lintDebug, and connectedDebugAndroidTest (10/10 passed on emulator-5554)."
     }
   ]
 }

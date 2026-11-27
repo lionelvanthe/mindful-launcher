@@ -2,9 +2,9 @@
 
 ## Current Objective
 
-- Goal: Full offline Niagara Launcher 1.16.38 parity + `feat-005` Automated Compose UI & Repository Instrumented Test Coverage.
-- Current status: Completed and verified via `testDebugUnitTest`, `connectedDebugAndroidTest` (9/9 passed on `JSN-L22`), `assembleDebug`, and `lintDebug` (all `BUILD SUCCESSFUL`).
-- Branch / commit: `master` (uncommitted working changes ready for user review / commit).
+- Goal: `feat-008` Active Anti-Addiction Gentle Friction System.
+- Current status: Completed and verified via `.\init.ps1` (`testDebugUnitTest` + `assembleDebug`), `lintDebug`, and `connectedDebugAndroidTest` (10/10 passed on `emulator-5554`).
+- Branch / commit: `master` (working changes ready for commit).
 
 ## Completed This Session
 

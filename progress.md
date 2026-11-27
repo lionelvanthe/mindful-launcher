@@ -2,8 +2,8 @@
 
 ## Current State
 
-**Last Updated:** 2026-11-26 22:18
-**Active Feature:** `feat-005` (Automated UI and Repository Test Coverage) Complete — Next: `feat-007` (Pro Unlock & v2 Context Triggers once product decisions are finalized)
+**Last Updated:** 2026-11-27 12:52
+**Active Feature:** `feat-008` (Active Anti-Addiction Gentle Friction System) Complete — Next: `feat-007` (Pro Unlock & v2 Context Triggers once product decisions are finalized)
 
 ## Status
 
@@ -59,6 +59,7 @@
 - [x] Analyzed `Niagara+Launcher+‧+Home+Screen_1.16.38_APKPure.apk` via Craft Anything MCP (`android_package_show`, `android_resources_read`, `android_classes_find`, `android_class_show`) and aligned clean-room UI/UX gaps: Alphabet Wave (`64dp` wave offset, `44dp` elevated `28sp` handle, `19dp` max section height), Typography (`16sp` primary row labels, `20sp` A–Z section headers, `48sp` default clock), 7 At-a-Glance clock styles (`CLASSIC`, `HORIZONTAL`, `VERTICAL`, `DAY_OF_WEEK`, `MINIMALIST`, `COMPACT`, `NONE`), Niagara Accent Color presets (`Niagara Blue` default + Amber/Green/Lavender/Coral), top-anchored `18sp` search bar, frameless inline notification previews, `36dp` rounded bottom sheets, `52dp` row targets, and `56dp` FAB; verified via `.\init.ps1` (`testDebugUnitTest` + `assembleDebug`) and `lintDebug` (all `BUILD SUCCESSFUL`)
 - [x] Completed remaining offline Niagara 1.16.38 features from full APK subpackage audit (`ev_8e4d9a40`, `ev_3f85d9f8`): added remaining 3 clocks (`ANALOG`, `FLIP`, `OVERLAP` → 10/10 total), `IconShapePreset` (`DEFAULT`, `CIRCLE`, `SQUIRCLE`, `DOTS` Niagara Dots in `AppIcon.kt`), custom-ordered Favorites with Move Up/Move Down (`PreferencesRepository.kt`, `HomeDialogs.kt`), `ScreenTimeUsageDialog` (7-day local `UsageStatsManager` breakdown), `NiagaraWidgetStack` (`HorizontalPager` with worm-dot indicators), 2×2 mini-icon folder preview + inline folder rename, swipe-down to expand notification shade (`EXPAND_STATUS_BAR`), Hide Status Bar toggle (`WindowInsetsControllerCompat`), and `/coin` + `/dice` secret command utilities (`CommandBarEngine.kt` + unit tests); verified via `.\init.ps1` and `lintDebug` (all `BUILD SUCCESSFUL`)
 - [x] Completed `feat-005` (`Automated UI and Repository Test Coverage`): added Compose UI test deps (`ui-test-junit4`, `ui-test-manifest`, `androidx.test.ext:junit`, `androidx.test:runner`), created `StillnessLauncherUiTest.kt` (HomeScreen ordered favorites & `/coin` utility, Top Search FAB, GentleFrictionDialog countdown & confirm, SettingsScreen Niagara options & Zero-Telemetry) and `PreferencesRepositoryInstrumentedTest.kt` (clocks/accent/icon shape/hide status bar, ordered favorites, folder CRUD, widget stack & JSON backup round-trip); verified `testDebugUnitTest`, `connectedDebugAndroidTest` (**9/9 passed on `JSN-L22` Android 10**), and `assembleDebug` (all `BUILD SUCCESSFUL`)
+- [x] Completed `feat-008` (`Active Anti-Addiction Gentle Friction System`): wired `HomeScreen` `onAppClick` through `vm::onAppClicked`, added `opensToday` via `UsageEvents` + local daily fallback and `resistedToday` daily counter (`AppRepository.kt`, `PreferencesRepository.kt`), redesigned `GentleFrictionDialog` with pulsing breathing circle (`Hít vào...` / `Thở ra...`), 1-tap intention chips, open-count & resisted-count stats (`FrictionDialog.kt`), added Home long-press friction toggle (`HomeDialogs.kt`), and added `PostSessionNudge` reflection card on resume (`LauncherViewModel.kt`, `HomeScreen.kt`, `MainActivity.kt`); verified via `.\init.ps1` (`testDebugUnitTest` + `assembleDebug`), `lintDebug`, and `connectedDebugAndroidTest` (**10/10 passed on `emulator-5554`**)
 
 ## Notes for Next Session
 

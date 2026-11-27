@@ -2,6 +2,7 @@ package com.indie.mindfullauncher.data
 
 import android.Manifest
 import android.app.AppOpsManager
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
@@ -327,8 +328,27 @@ class AppRepository(private val context: Context) {
             ?.sumOf { it.totalTimeInForeground }
             ?: 0L
 
+        var opens = 0
+        runCatching {
+            val events = usm.queryEvents(start, end)
+            val event = UsageEvents.Event()
+            val targetEventType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                UsageEvents.Event.ACTIVITY_RESUMED
+            } else {
+                @Suppress("DEPRECATION")
+                UsageEvents.Event.MOVE_TO_FOREGROUND
+            }
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.packageName == packageName && event.eventType == targetEventType) {
+                    opens++
+                }
+            }
+        }
+
         return AppUsageSummary(
             minutesToday = (totalMs / 60_000L).toInt(),
+            opensToday = opens,
             hasPermission = true
         )
     }

@@ -185,6 +185,8 @@ fun HomeScreen(
     onDeleteNote: (String) -> Unit,
     onSetShowContactSearch: (Boolean) -> Unit = {},
     onSetSmartSortEnabled: (Boolean) -> Unit = {},
+    onToggleFriction: (String) -> Unit = {},
+    onDismissPostSessionNudge: () -> Unit = {},
     onOpenSettings: () -> Unit,
     onOpenDefaultLauncher: () -> Unit,
     onDismissSetupBanner: () -> Unit,
@@ -632,6 +634,44 @@ fun HomeScreen(
                         }
                     }
 
+                    state.postSessionNudge?.let { nudge ->
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = colors.surfaceVariant.copy(alpha = 0.72f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Bạn vừa dùng ${nudge.app.label} ${nudge.sessionMinutes} phút",
+                                        color = colors.onSurface,
+                                        style = typography.labelLarge
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (nudge.opensToday > 0) {
+                                            "Lần mở thứ ${nudge.opensToday} hôm nay · Nghỉ mắt một chút nhé?"
+                                        } else {
+                                            "Hít thở một chút trước khi làm việc tiếp nhé."
+                                        },
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.bodySmall
+                                    )
+                                }
+                                TextButton(onClick = onDismissPostSessionNudge) {
+                                    Text("Đã hiểu", color = colors.primary)
+                                }
+                            }
+                        }
+                    }
+
                     if (state.showMediaPlayer && state.mediaPlayback != null) {
                         Spacer(modifier = Modifier.height(10.dp))
                         NiagaraMediaCard(
@@ -680,7 +720,45 @@ fun HomeScreen(
                                 if (state.hasCalendarPermission) showAgendaDialog = true
                             }
                         )
-                        if (state.showMediaPlayer && state.mediaPlayback != null) {
+                        state.postSessionNudge?.let { nudge ->
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = colors.surfaceVariant.copy(alpha = 0.72f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Bạn vừa dùng ${nudge.app.label} ${nudge.sessionMinutes} phút",
+                                        color = colors.onSurface,
+                                        style = typography.labelLarge
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (nudge.opensToday > 0) {
+                                            "Lần mở thứ ${nudge.opensToday} hôm nay · Nghỉ mắt một chút nhé?"
+                                        } else {
+                                            "Hít thở một chút trước khi làm việc tiếp nhé."
+                                        },
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.bodySmall
+                                    )
+                                }
+                                TextButton(onClick = onDismissPostSessionNudge) {
+                                    Text("Đã hiểu", color = colors.primary)
+                                }
+                            }
+                        }
+                    }
+
+                    if (state.showMediaPlayer && state.mediaPlayback != null) {
                             Spacer(modifier = Modifier.height(10.dp))
                             NiagaraMediaCard(
                                 media = state.mediaPlayback,
@@ -1297,6 +1375,7 @@ fun HomeScreen(
             canMoveDown = favIndex in 0 until favoriteApps.lastIndex,
             isHidden = selected.packageName in state.hiddenPackages,
             isSummarized = selected.packageName in state.summaryPackages,
+            isFrictionEnabled = selected.packageName in state.frictionPackages,
             iconPackPackage = state.selectedIconPack,
             monochromeIcons = state.monochromeIcons,
             onDismiss = { optionsApp = null },
@@ -1334,6 +1413,10 @@ fun HomeScreen(
             },
             onToggleSummary = {
                 onToggleSummary(selected.packageName)
+                optionsApp = null
+            },
+            onToggleFriction = {
+                onToggleFriction(selected.packageName)
                 optionsApp = null
             },
             onToggleHidden = {
