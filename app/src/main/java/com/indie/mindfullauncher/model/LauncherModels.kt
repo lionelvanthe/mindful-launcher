@@ -123,3 +123,41 @@ data class PostSessionNudge(
     val sessionMinutes: Int,
     val opensToday: Int
 )
+
+data class FocusSessionState(
+    val remainingSeconds: Int = 0,
+    val totalSeconds: Int = 25 * 60,
+    val isRunning: Boolean = false
+)
+
+data class CustomContextProfile(
+    val id: String,
+    val name: String,
+    val colorHex: Long = 0xFF7CDC86,
+    val iconKey: String = "spark",
+    val packages: Set<String> = emptySet(),
+    val favoriteOrder: List<String> = emptyList(),
+    val restrictOtherApps: Boolean = false,
+    val hideNotifications: Boolean = false,
+    val monochromeIcons: Boolean = false,
+    val oledPureBlack: Boolean = false,
+    val muteMediaOnEnter: Boolean = false,
+    val autoTimeStartHour: Int? = null,
+    val autoTimeEndHour: Int? = null,
+    val autoOnHeadphones: Boolean = false,
+    val autoOnCharging: Boolean = false
+)
+
+data class BuiltInContextConfig(
+    val profile: ContextProfile,
+    val colorHex: Long,
+    val restrictOtherApps: Boolean = false,
+    val hideNotifications: Boolean = false,
+    val monochromeIcons: Boolean = false,
+    val oledPureBlack: Boolean = false,
+    val muteMediaOnEnter: Boolean = false,
+    val autoTimeStartHour: Int? = null,
+    val autoTimeEndHour: Int? = null,
+    val autoOnHeadphones: Boolean = false,
+    val autoOnCharging: Boolean = false
+)

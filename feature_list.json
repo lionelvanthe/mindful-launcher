@@ -64,6 +64,30 @@
       "dependencies": ["feat-005", "feat-006"],
       "status": "done",
       "evidence": "Implemented in LauncherModels.kt, AppRepository.kt, PreferencesRepository.kt, LauncherViewModel.kt, FrictionDialog.kt, HomeDialogs.kt, HomeScreen.kt, MainActivity.kt; verified via init.ps1 (testDebugUnitTest + assembleDebug), lintDebug, and connectedDebugAndroidTest (10/10 passed on emulator-5554)."
+    },
+    {
+      "id": "feat-009",
+      "name": "True Context-Aware Home Screen & Focus Timer",
+      "description": "Render per-context Favorites (WORK/EVENING/SLEEP) with per-profile ordering, add Home Context & 25-minute Pomodoro Focus strip (restricting non-Work apps via Gentle Friction during focus), and add zero-permission local triggers (charging after 21:00 or DND -> SLEEP, monochrome icons in SLEEP).",
+      "dependencies": ["feat-008"],
+      "status": "done",
+      "evidence": "Implemented in LauncherModels.kt, AppRepository.kt, PreferencesRepository.kt, LauncherViewModel.kt, HomeScreen.kt, AppDrawerAndSettings.kt, MainActivity.kt; verified via init.ps1 (testDebugUnitTest + assembleDebug), lintDebug, and connectedDebugAndroidTest (11/11 passed on emulator-5554)."
+    },
+    {
+      "id": "feat-010",
+      "name": "Custom Context Profiles & Per-Context App Picker",
+      "description": "Allow users to create/delete custom context profiles (with optional monochrome icon mode) and batch-select apps for any built-in or custom context directly from HomeScreen.",
+      "dependencies": ["feat-009"],
+      "status": "done",
+      "evidence": "Implemented CustomContextProfile in LauncherModels.kt, JSON persistence in PreferencesRepository.kt, ViewModel actions in LauncherViewModel.kt, ContextAppPickerDialog & CreateCustomContextDialog in HomeDialogs.kt, and HomeScreen/MainActivity wiring; verified via init.ps1, lintDebug, and connectedDebugAndroidTest (12/12 passed on emulator-5554)."
+    },
+    {
+      "id": "feat-011",
+      "name": "Rich Context Mode Editor (Triggers, Restrictions & Actions)",
+      "description": "Upgrade both built-in (WORK/EVENING/SLEEP) and custom contexts with a full Mode Editor inspired by Samsung Modes & Routines: color presets, auto-triggers (headphones/Bluetooth, charging, time range), app usage restriction (5s friction on non-mode apps), hide notifications, monochrome icons, OLED pure black background, and mute media on enter.",
+      "dependencies": ["feat-010"],
+      "status": "done",
+      "evidence": "Implemented BuiltInContextConfig & CustomContextProfile in LauncherModels.kt, AppRepository.kt, PreferencesRepository.kt, LauncherViewModel.kt, HomeDialogs.kt (ContextSwitcherSheet + ContextModeEditorSheet), HomeScreen.kt, MainActivity.kt; verified via init.ps1, lintDebug, and connectedDebugAndroidTest (15/15 passed on emulator-5554 only)."
     }
   ]
 }

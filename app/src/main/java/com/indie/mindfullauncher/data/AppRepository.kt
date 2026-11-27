@@ -2,16 +2,19 @@ package com.indie.mindfullauncher.data
 
 import android.Manifest
 import android.app.AppOpsManager
+import android.app.NotificationManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Process
 import android.provider.CalendarContract
@@ -289,6 +292,26 @@ class AppRepository(private val context: Context) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
+    }
+
+    fun isDeviceCharging(): Boolean {
+        val sticky = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            ?: return false
+        val plugged = sticky.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+        return plugged != 0
+    }
+
+    fun isDndActive(): Boolean {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            ?: return false
+        return nm.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
+    }
+
+    fun muteMediaVolume() {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        runCatching {
+            am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+        }
     }
 
     fun isExternalAudioConnected(): Boolean {

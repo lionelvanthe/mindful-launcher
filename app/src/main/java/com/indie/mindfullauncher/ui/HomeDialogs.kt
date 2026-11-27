@@ -1,8 +1,13 @@
 package com.indie.mindfullauncher.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -61,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,7 +76,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import com.indie.mindfullauncher.model.AppInfo
 import com.indie.mindfullauncher.model.AppShortcutItem
+import com.indie.mindfullauncher.model.BuiltInContextConfig
 import com.indie.mindfullauncher.model.CalendarEventPreview
+import com.indie.mindfullauncher.model.ContextProfile
+import com.indie.mindfullauncher.model.CustomContextProfile
 import com.indie.mindfullauncher.model.LauncherFolder
 import com.indie.mindfullauncher.model.NotificationPreview
 import com.indie.mindfullauncher.model.QuickNote
@@ -1402,5 +1412,747 @@ fun NiagaraSearchOptionsSheet(
                 }
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ContextSwitcherSheet(
+    activeProfile: ContextProfile,
+    activeCustomContextId: String?,
+    customContexts: List<CustomContextProfile>,
+    builtInConfigs: Map<ContextProfile, BuiltInContextConfig> = emptyMap(),
+    pinnedByProfile: Map<ContextProfile, Set<String>>,
+    isFocusRunning: Boolean = false,
+    onDismiss: () -> Unit,
+    onSelectBuiltIn: (ContextProfile) -> Unit,
+    onSelectCustom: (String) -> Unit,
+    onPickAppsForBuiltIn: (ContextProfile) -> Unit,
+    onPickAppsForCustom: (CustomContextProfile) -> Unit,
+    onEditBuiltInContext: (ContextProfile) -> Unit = {},
+    onEditCustomContext: (CustomContextProfile) -> Unit = {},
+    onCreateCustomContext: () -> Unit,
+    onStartFocus: () -> Unit = {},
+    onStopFocus: () -> Unit = {}
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+        containerColor = colors.surface,
+        contentColor = colors.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
+            Text(
+                text = "Ngữ cảnh màn hình chính",
+                color = colors.onSurface,
+                style = typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Chọn ngữ cảnh hoặc tùy chỉnh ứng dụng hiển thị",
+                color = colors.onSurfaceVariant,
+                style = typography.bodySmall
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+
+            listOf(ContextProfile.WORK, ContextProfile.EVENING, ContextProfile.SLEEP).forEach { profile ->
+                val isSelected = activeCustomContextId == null && activeProfile == profile
+                val count = pinnedByProfile[profile]?.size ?: 0
+                val cfg = builtInConfigs[profile]
+                val dotColor = Color(
+                    cfg?.colorHex ?: when (profile) {
+                        ContextProfile.EVENING -> 0xFFFFB74DL
+                        ContextProfile.SLEEP -> 0xFF5C6BC0L
+                        else -> 0xFF6B8CFFL
+                    }
+                )
+                val rules = buildList {
+                    if (cfg?.autoTimeStartHour != null && cfg.autoTimeEndHour != null) {
+                        add("${cfg.autoTimeStartHour}–${cfg.autoTimeEndHour}h")
+                    } else {
+                        add(profile.timeHint)
+                    }
+                    add("$count app")
+                    if (cfg?.restrictOtherApps == true) add("Hạn chế app")
+                    if (cfg?.monochromeIcons == true) add("Trắng đen")
+                    if (cfg?.oledPureBlack == true) add("Nền đen")
+                }.joinToString(" · ")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable {
+                                onSelectBuiltIn(profile)
+                                onDismiss()
+                            }
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(dotColor)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = profile.displayName,
+                                color = if (isSelected) colors.primary else colors.onSurface,
+                                style = typography.bodyLarge
+                            )
+                            Text(
+                                text = rules,
+                                color = colors.onSurfaceVariant,
+                                style = typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    TextButton(onClick = {
+                        onDismiss()
+                        onEditBuiltInContext(profile)
+                    }) {
+                        Text("Tùy chỉnh", color = colors.secondary)
+                    }
+                }
+            }
+
+            if (customContexts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                HorizontalDivider(color = colors.surfaceVariant)
+                Spacer(modifier = Modifier.height(6.dp))
+                customContexts.forEach { ctx ->
+                    val isSelected = activeCustomContextId == ctx.id
+                    val rules = buildList {
+                        add("${ctx.packages.size} app")
+                        if (ctx.restrictOtherApps) add("Hạn chế app")
+                        if (ctx.monochromeIcons) add("Trắng đen")
+                        if (ctx.oledPureBlack) add("Nền đen")
+                        if (ctx.autoOnHeadphones) add("Tai nghe")
+                        if (ctx.autoOnCharging) add("Cắm sạc")
+                        if (ctx.autoTimeStartHour != null && ctx.autoTimeEndHour != null) {
+                            add("${ctx.autoTimeStartHour}–${ctx.autoTimeEndHour}h")
+                        }
+                    }.joinToString(" · ")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    onSelectCustom(ctx.id)
+                                    onDismiss()
+                                }
+                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(ctx.colorHex))
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = ctx.name,
+                                    color = if (isSelected) colors.primary else colors.onSurface,
+                                    style = typography.bodyLarge
+                                )
+                                Text(
+                                    text = rules,
+                                    color = colors.onSurfaceVariant,
+                                    style = typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        TextButton(onClick = {
+                            onDismiss()
+                            onEditCustomContext(ctx)
+                        }) {
+                            Text("Tùy chỉnh", color = colors.secondary)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = {
+                    onDismiss()
+                    if (isFocusRunning) onStopFocus() else onStartFocus()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(if (isFocusRunning) "Kết thúc Tập trung" else "Bắt đầu Tập trung (25p)")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    onDismiss()
+                    onCreateCustomContext()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("+ Tạo ngữ cảnh riêng")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ContextAppPickerDialog(
+    contextTitle: String,
+    isCustomContext: Boolean,
+    installedApps: List<AppInfo>,
+    selectedPackages: Set<String>,
+    iconPackPackage: String?,
+    monochromeIcons: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (Set<String>) -> Unit,
+    onDeleteContext: (() -> Unit)? = null
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var query by remember { mutableStateOf("") }
+    var currentSelection by remember(selectedPackages) { mutableStateOf(selectedPackages) }
+    val filteredApps = remember(installedApps, query) {
+        val clean = query.trim().lowercase()
+        if (clean.isEmpty()) installedApps
+        else installedApps.filter { it.label.lowercase().contains(clean) }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+        containerColor = colors.surface,
+        contentColor = colors.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Chọn app cho \"$contextTitle\"",
+                        color = colors.onSurface,
+                        style = typography.titleMedium
+                    )
+                    Text(
+                        text = "Đã chọn ${currentSelection.size} ứng dụng",
+                        color = colors.onSurfaceVariant,
+                        style = typography.bodySmall
+                    )
+                }
+                if (isCustomContext && onDeleteContext != null) {
+                    TextButton(onClick = {
+                        onDeleteContext()
+                        onDismiss()
+                    }) {
+                        Text("Xóa", color = colors.error)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Tìm ứng dụng...") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+            ) {
+                items(filteredApps, key = { it.packageName }) { app ->
+                    val checked = app.packageName in currentSelection
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                currentSelection = if (checked) {
+                                    currentSelection - app.packageName
+                                } else {
+                                    currentSelection + app.packageName
+                                }
+                            }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppIcon(
+                            packageName = app.packageName,
+                            contentDescription = app.label,
+                            size = 34.dp,
+                            iconPackPackage = iconPackPackage,
+                            monochrome = monochromeIcons
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = app.label,
+                            color = colors.onSurface,
+                            style = typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = { isChecked ->
+                                currentSelection = if (isChecked) {
+                                    currentSelection + app.packageName
+                                } else {
+                                    currentSelection - app.packageName
+                                }
+                            },
+                            colors = CheckboxDefaults.colors(checkedColor = colors.primary)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Hủy")
+                }
+                Button(
+                    onClick = {
+                        onSave(currentSelection)
+                        onDismiss()
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Lưu")
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+fun CreateCustomContextDialog(
+    onDismiss: () -> Unit,
+    onCreate: (String, Boolean) -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    var name by remember { mutableStateOf("") }
+    var monochrome by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = colors.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Text(
+                    text = "Tạo ngữ cảnh riêng",
+                    color = colors.onSurface,
+                    style = typography.titleLarge
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Ví dụ: Học tập, Tập Gym, Đọc sách, Lái xe...",
+                    color = colors.onSurfaceVariant,
+                    style = typography.bodySmall
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Tên ngữ cảnh") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { monochrome = !monochrome }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = monochrome,
+                        onCheckedChange = { monochrome = it },
+                        colors = CheckboxDefaults.colors(checkedColor = colors.primary)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Icon đơn sắc (giảm xao nhãng)",
+                        color = colors.onSurface,
+                        style = typography.bodyMedium
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Hủy")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (name.isNotBlank()) {
+                                onCreate(name.trim(), monochrome)
+                                onDismiss()
+                            }
+                        },
+                        enabled = name.isNotBlank(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Tạo")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val MODE_COLOR_PRESETS = listOf(
+    0xFF7CDC86L,
+    0xFF6B8CFFL,
+    0xFFFFB74DL,
+    0xFFD4BBFFL,
+    0xFFFF8A80L,
+    0xFF4DB6ACL
+)
+
+private val MODE_TIME_PRESETS = listOf(
+    Triple("Tắt", null, null),
+    Triple("08–12h", 8, 12),
+    Triple("13–17h", 13, 17),
+    Triple("19–22h", 19, 22),
+    Triple("22–06h", 22, 6)
+)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun ContextModeEditorSheet(
+    initialProfile: CustomContextProfile?,
+    isBuiltIn: Boolean = false,
+    installedApps: List<AppInfo> = emptyList(),
+    initialPackages: Set<String> = initialProfile?.packages ?: emptySet(),
+    iconPackPackage: String? = null,
+    onDismiss: () -> Unit,
+    onSave: (CustomContextProfile) -> Unit,
+    onSavePackages: ((Set<String>) -> Unit)? = null,
+    onDelete: ((String) -> Unit)? = null
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val isEditing = initialProfile != null
+
+    var name by remember(initialProfile) { mutableStateOf(initialProfile?.name.orEmpty()) }
+    var colorHex by remember(initialProfile) { mutableStateOf(initialProfile?.colorHex ?: 0xFF7CDC86L) }
+    var selectedPackages by remember(initialProfile, initialPackages) { mutableStateOf(initialPackages) }
+    var showAppPicker by remember { mutableStateOf(false) }
+    var restrictOtherApps by remember(initialProfile) { mutableStateOf(initialProfile?.restrictOtherApps ?: false) }
+    var hideNotifications by remember(initialProfile) { mutableStateOf(initialProfile?.hideNotifications ?: false) }
+    var monochromeIcons by remember(initialProfile) { mutableStateOf(initialProfile?.monochromeIcons ?: false) }
+    var oledPureBlack by remember(initialProfile) { mutableStateOf(initialProfile?.oledPureBlack ?: false) }
+    var muteMediaOnEnter by remember(initialProfile) { mutableStateOf(initialProfile?.muteMediaOnEnter ?: false) }
+    var autoOnHeadphones by remember(initialProfile) { mutableStateOf(initialProfile?.autoOnHeadphones ?: false) }
+    var autoOnCharging by remember(initialProfile) { mutableStateOf(initialProfile?.autoOnCharging ?: false) }
+    var autoStartHour by remember(initialProfile) { mutableStateOf(initialProfile?.autoTimeStartHour) }
+    var autoEndHour by remember(initialProfile) { mutableStateOf(initialProfile?.autoTimeEndHour) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+        containerColor = colors.surface,
+        contentColor = colors.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isEditing) "Tùy chỉnh chế độ" else "Tạo chế độ mới",
+                    color = colors.onSurface,
+                    style = typography.titleMedium
+                )
+                if (!isBuiltIn && isEditing && initialProfile != null && onDelete != null) {
+                    TextButton(onClick = {
+                        onDelete(initialProfile.id)
+                        onDismiss()
+                    }) {
+                        Text("Xóa", color = colors.error)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedTextField(
+                value = name,
+                onValueChange = { if (!isBuiltIn) name = it },
+                enabled = !isBuiltIn,
+                label = { Text("Tên chế độ (vd: Học tập, Gym, Đọc sách)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Text("Ứng dụng hiển thị", color = colors.primary, style = typography.labelLarge)
+            Spacer(modifier = Modifier.height(6.dp))
+            OutlinedButton(
+                onClick = { showAppPicker = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Chọn ứng dụng (${selectedPackages.size} đã chọn)")
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Text("Màu sắc không khí", color = colors.onSurfaceVariant, style = typography.labelMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MODE_COLOR_PRESETS.forEach { hex ->
+                    val selected = colorHex == hex
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(Color(hex))
+                            .then(
+                                if (selected) Modifier.border(2.5.dp, colors.onSurface, CircleShape)
+                                else Modifier
+                            )
+                            .clickable { colorHex = hex }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Bật tự động", color = colors.primary, style = typography.labelLarge)
+            Spacer(modifier = Modifier.height(6.dp))
+            ModeEditorSwitchRow(
+                title = "Khi kết nối tai nghe / Bluetooth",
+                checked = autoOnHeadphones,
+                onCheckedChange = { autoOnHeadphones = it }
+            )
+            ModeEditorSwitchRow(
+                title = "Khi đang cắm sạc",
+                checked = autoOnCharging,
+                onCheckedChange = { autoOnCharging = it }
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text("Theo khung giờ", color = colors.onSurfaceVariant, style = typography.bodySmall)
+            Spacer(modifier = Modifier.height(6.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MODE_TIME_PRESETS.forEach { (label, s, e) ->
+                    val selected = autoStartHour == s && autoEndHour == e
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = if (selected) colors.primary.copy(alpha = 0.2f) else colors.surfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .clickable {
+                                autoStartHour = s
+                                autoEndHour = e
+                            }
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (selected) colors.primary else colors.onSurfaceVariant,
+                            style = typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Kiểm soát & Chống xao nhãng", color = colors.primary, style = typography.labelLarge)
+            Spacer(modifier = Modifier.height(6.dp))
+            ModeEditorSwitchRow(
+                title = "Hạn chế ứng dụng ngoài chế độ (dừng 5s)",
+                checked = restrictOtherApps,
+                onCheckedChange = { restrictOtherApps = it }
+            )
+            ModeEditorSwitchRow(
+                title = "Ẩn xem trước thông báo",
+                checked = hideNotifications,
+                onCheckedChange = { hideNotifications = it }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Thay đổi cài đặt khi bật", color = colors.primary, style = typography.labelLarge)
+            Spacer(modifier = Modifier.height(6.dp))
+            ModeEditorSwitchRow(
+                title = "Trắng đen (Icon đơn sắc)",
+                checked = monochromeIcons,
+                onCheckedChange = { monochromeIcons = it }
+            )
+            ModeEditorSwitchRow(
+                title = "Nền đen thuần OLED (Ẩn hình nền)",
+                checked = oledPureBlack,
+                onCheckedChange = { oledPureBlack = it }
+            )
+            ModeEditorSwitchRow(
+                title = "Tắt tiếng Media khi bật chế độ",
+                checked = muteMediaOnEnter,
+                onCheckedChange = { muteMediaOnEnter = it }
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Thoát")
+                }
+                Button(
+                    onClick = {
+                        val clean = name.trim()
+                        if (clean.isNotEmpty()) {
+                            val result = (initialProfile ?: CustomContextProfile(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = clean
+                            )).copy(
+                                name = clean,
+                                colorHex = colorHex,
+                                packages = selectedPackages,
+                                favoriteOrder = (initialProfile?.favoriteOrder.orEmpty().filter { it in selectedPackages } +
+                                    selectedPackages.filter { it !in initialProfile?.favoriteOrder.orEmpty() }),
+                                restrictOtherApps = restrictOtherApps,
+                                hideNotifications = hideNotifications,
+                                monochromeIcons = monochromeIcons,
+                                oledPureBlack = oledPureBlack,
+                                muteMediaOnEnter = muteMediaOnEnter,
+                                autoTimeStartHour = autoStartHour,
+                                autoTimeEndHour = autoEndHour,
+                                autoOnHeadphones = autoOnHeadphones,
+                                autoOnCharging = autoOnCharging
+                            )
+                            onSavePackages?.invoke(selectedPackages)
+                            onSave(result)
+                            onDismiss()
+                        }
+                    },
+                    enabled = name.isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Hoàn tất")
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+
+    if (showAppPicker) {
+        ContextAppPickerDialog(
+            contextTitle = name.ifBlank { "Chế độ mới" },
+            isCustomContext = false,
+            installedApps = installedApps,
+            selectedPackages = selectedPackages,
+            iconPackPackage = iconPackPackage,
+            monochromeIcons = monochromeIcons,
+            onDismiss = { showAppPicker = false },
+            onSave = { updated -> selectedPackages = updated }
+        )
+    }
+}
+
+@Composable
+private fun ModeEditorSwitchRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            color = colors.onSurface,
+            style = typography.bodyMedium,
+            modifier = Modifier.weight(1f).padding(end = 12.dp)
+        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

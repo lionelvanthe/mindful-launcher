@@ -78,8 +78,8 @@ class MainActivity : ComponentActivity() {
                 route = LauncherRoute.HOME
             }
 
-            LaunchedEffect(state.showWallpaperBackground) {
-                if (state.showWallpaperBackground) {
+            LaunchedEffect(state.effectiveShowWallpaper) {
+                if (state.effectiveShowWallpaper) {
                     window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
                     window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
                 } else {
@@ -107,7 +107,14 @@ class MainActivity : ComponentActivity() {
                         onSubmitCommand = vm::submitCommand,
                         onAppClick = vm::onAppClicked,
                         onDialContact = vm::dialContact,
-                        onToggleFavorite = { pkg -> vm.togglePin(ContextProfile.WORK, pkg) },
+                        onToggleFavorite = { pkg ->
+                            val target = if (vm.uiState.value.activeProfile == ContextProfile.ALL) {
+                                ContextProfile.WORK
+                            } else {
+                                vm.uiState.value.activeProfile
+                            }
+                            vm.togglePin(target, pkg)
+                        },
                         onMoveFavorite = vm::moveFavorite,
                         onRerollUtility = vm::rerollCommandUtility,
                         onToggleHidden = vm::toggleHiddenApp,
@@ -141,6 +148,15 @@ class MainActivity : ComponentActivity() {
                         onDeleteNote = vm::deleteNote,
                         onSetShowContactSearch = vm::setShowContactSearch,
                         onSetSmartSortEnabled = vm::setSmartSortEnabled,
+                        onSelectProfile = vm::selectProfile,
+                        onSelectCustomContext = vm::selectCustomContext,
+                        onCreateCustomContext = vm::createCustomContext,
+                        onSaveCustomContext = vm::saveCustomContext,
+                        onSaveBuiltInContextConfig = vm::saveBuiltInContextConfig,
+                        onDeleteCustomContext = vm::deleteCustomContext,
+                        onSetAppsForActiveContext = vm::setAppsForActiveContext,
+                        onStartFocusTimer = vm::startFocusTimer,
+                        onStopFocusTimer = vm::stopFocusTimer,
                         onOpenSettings = { route = LauncherRoute.SETTINGS },
                         onOpenDefaultLauncher = vm::openDefaultLauncherSettings,
                         onDismissSetupBanner = vm::dismissSetupBanner,
@@ -176,6 +192,9 @@ class MainActivity : ComponentActivity() {
                         onSetShowMediaPlayer = vm::setShowMediaPlayer,
                         onSetSmartSortEnabled = vm::setSmartSortEnabled,
                         onSetShowMostUsedApps = vm::setShowMostUsedApps,
+                        onToggleAutoContext = vm::toggleAutoContext,
+                        onSetAutoSleepOnCharge = vm::setAutoSleepOnCharge,
+                        onSetMonochromeInSleep = vm::setMonochromeInSleep,
                         onOpenNotificationSettings = vm::openNotificationListenerSettings,
                         onOpenUsageSettings = vm::openUsageSettings,
                         onPickWidget = {

@@ -12,10 +12,13 @@ import com.indie.mindfullauncher.domain.CommandResult
 import com.indie.mindfullauncher.model.AccentPreset
 import com.indie.mindfullauncher.model.AppInfo
 import com.indie.mindfullauncher.model.AppShortcutItem
+import com.indie.mindfullauncher.model.BuiltInContextConfig
 import com.indie.mindfullauncher.model.CalendarEventPreview
 import com.indie.mindfullauncher.model.ClockStyle
 import com.indie.mindfullauncher.model.ContactMatch
 import com.indie.mindfullauncher.model.ContextProfile
+import com.indie.mindfullauncher.model.CustomContextProfile
+import com.indie.mindfullauncher.model.FocusSessionState
 import com.indie.mindfullauncher.model.FontPreset
 import com.indie.mindfullauncher.model.IconPackInfo
 import com.indie.mindfullauncher.model.IconShapePreset
@@ -97,11 +100,40 @@ data class LauncherUiState(
     val pendingFriction: PendingFriction? = null,
     val postSessionNudge: PostSessionNudge? = null,
     val frictionResistedToday: Int = 0,
+    val focusSession: FocusSessionState = FocusSessionState(),
+    val customContexts: List<CustomContextProfile> = emptyList(),
+    val builtInContextConfigs: Map<ContextProfile, BuiltInContextConfig> = emptyMap(),
+    val activeCustomContextId: String? = null,
+    val autoSleepOnCharge: Boolean = true,
+    val monochromeInSleep: Boolean = true,
     val hasUsagePermission: Boolean = false,
     val isDefaultLauncher: Boolean = false,
     val isSetupBannerDismissed: Boolean = false,
     val isTipsBannerDismissed: Boolean = false
 ) {
+    val activeCustomContext: CustomContextProfile?
+        get() = activeCustomContextId?.let { id -> customContexts.firstOrNull { it.id == id } }
+
+    val activeBuiltInConfig: BuiltInContextConfig?
+        get() = if (activeCustomContextId == null) builtInContextConfigs[activeProfile] else null
+
+    val effectiveMonochromeIcons: Boolean
+        get() = monochromeIcons ||
+            (activeCustomContext?.monochromeIcons == true) ||
+            (activeBuiltInConfig?.monochromeIcons == true) ||
+            (activeCustomContext == null && activeBuiltInConfig == null && monochromeInSleep && activeProfile == ContextProfile.SLEEP)
+
+    val effectiveShowWallpaper: Boolean
+        get() = showWallpaperBackground &&
+            !(activeCustomContext?.oledPureBlack == true) &&
+            !(activeBuiltInConfig?.oledPureBlack == true)
+
+    val effectiveShowNotifications: Boolean
+        get() = showNotificationPreviews &&
+            !(activeCustomContext?.hideNotifications == true) &&
+            !(activeBuiltInConfig?.hideNotifications == true) &&
+            !focusSession.isRunning
+
     val visibleContextApps: List<AppInfo>
         get() {
             if (activeProfile == ContextProfile.ALL) return installedApps.take(12)
@@ -119,6 +151,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val uiState: StateFlow<LauncherUiState> = _uiState.asStateFlow()
 
     private var frictionTimerJob: Job? = null
+    private var focusTimerJob: Job? = null
     private var lastFrictionLaunchPkg: String? = null
     private var lastFrictionLaunchAtMillis: Long = 0L
 
@@ -145,7 +178,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 if (custom != null) app.copy(label = custom) else app
             }.sortedBy { it.label.lowercase() }
             val autoEnabled = prefsRepo.isAutoContextEnabled()
-            val profile = if (autoEnabled) prefsRepo.getCurrentTimeProfile() else _uiState.value.activeProfile
+            val autoSleepOnCharge = prefsRepo.isAutoSleepOnChargeEnabled()
+            val monochromeInSleep = prefsRepo.isMonochromeInSleepEnabled()
+            val customContexts = prefsRepo.getCustomContexts()
+            val builtInConfigs = prefsRepo.getBuiltInContextConfigs()
+            val profile = if (_uiState.value.focusSession.isRunning) {
+                ContextProfile.WORK
+            } else if (autoEnabled) {
+                prefsRepo.resolveEffectiveContextProfile(
+                    isCharging = appRepo.isDeviceCharging(),
+                    isDndActive = appRepo.isDndActive()
+                )
+            } else {
+                _uiState.value.activeProfile
+            }
             val pinnedMap = ContextProfile.entries
                 .filter { it != ContextProfile.ALL }
                 .associateWith { prefsRepo.getPinnedPackages(it, apps) }
@@ -154,7 +200,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val iconSize = prefsRepo.getIconSizePreset()
             val iconShape = prefsRepo.getIconShapePreset()
             val hideStatusBar = prefsRepo.isHideStatusBar()
-            val favoriteOrder = prefsRepo.getFavoriteOrder(pinnedMap[ContextProfile.WORK].orEmpty())
+            val favProfile = if (profile == ContextProfile.ALL) ContextProfile.WORK else profile
+            val favoriteOrder = prefsRepo.getFavoriteOrder(favProfile, pinnedMap[favProfile].orEmpty())
             val widgetIds = prefsRepo.getPinnedWidgetIds()
             val clockStyle = prefsRepo.getClockStyle()
             val accentPreset = prefsRepo.getAccentPreset()
@@ -242,7 +289,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     hasCalendarPermission = hasCalendar,
                     hasNotificationPermission = hasNotif,
                     notes = notes,
+                    customContexts = customContexts,
+                    builtInContextConfigs = builtInConfigs,
                     frictionResistedToday = resistedToday,
+                    autoSleepOnCharge = autoSleepOnCharge,
+                    monochromeInSleep = monochromeInSleep,
                     hasUsagePermission = hasUsage,
                     isDefaultLauncher = isDefault,
                     isSetupBannerDismissed = bannerDismissed,
@@ -261,10 +312,40 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val hasNotif = appRepo.hasNotificationListenerPermission()
         val headphonesConnected = appRepo.isExternalAudioConnected()
         val isDefault = appRepo.isDefaultLauncher()
-        val nextProfile = if (state.autoContextEnabled) prefsRepo.getCurrentTimeProfile() else state.activeProfile
+        val autoCustom = if (!state.focusSession.isRunning && state.autoContextEnabled) {
+            prefsRepo.resolveActiveCustomContext(
+                isHeadphonesConnected = headphonesConnected,
+                isCharging = appRepo.isDeviceCharging()
+            )
+        } else {
+            null
+        }
+        val nextProfile = when {
+            state.focusSession.isRunning -> ContextProfile.WORK
+            autoCustom != null -> state.activeProfile
+            state.autoContextEnabled -> prefsRepo.resolveEffectiveContextProfile(
+                isCharging = appRepo.isDeviceCharging(),
+                isDndActive = appRepo.isDndActive(),
+                isHeadphonesConnected = headphonesConnected
+            )
+            else -> state.activeProfile
+        }
+        val nextCustomId = when {
+            state.focusSession.isRunning -> null
+            autoCustom != null -> autoCustom.id
+            state.autoContextEnabled -> null
+            else -> state.activeCustomContextId
+        }
+        val favProfile = if (nextProfile == ContextProfile.ALL) ContextProfile.WORK else nextProfile
+        val nextFavOrder = autoCustom?.favoriteOrder ?: prefsRepo.getFavoriteOrder(
+            favProfile,
+            state.pinnedByProfile[favProfile].orEmpty()
+        )
         _uiState.update {
             it.copy(
                 activeProfile = nextProfile,
+                activeCustomContextId = nextCustomId,
+                favoriteOrder = nextFavOrder,
                 hasUsagePermission = hasUsage,
                 hasCalendarPermission = hasCalendar,
                 hasContactsPermission = hasContacts,
@@ -297,13 +378,182 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun selectProfile(profile: ContextProfile) {
-        _uiState.update { it.copy(activeProfile = profile) }
+        val state = _uiState.value
+        if (state.builtInContextConfigs[profile]?.muteMediaOnEnter == true) {
+            appRepo.muteMediaVolume()
+        }
+        val favProfile = if (profile == ContextProfile.ALL) ContextProfile.WORK else profile
+        val order = prefsRepo.getFavoriteOrder(favProfile, state.pinnedByProfile[favProfile].orEmpty())
+        _uiState.update {
+            it.copy(
+                activeCustomContextId = null,
+                activeProfile = profile,
+                favoriteOrder = order
+            )
+        }
+    }
+
+    fun saveBuiltInContextConfig(config: BuiltInContextConfig) {
+        val updated = prefsRepo.saveBuiltInContextConfig(config)
+        if (config.muteMediaOnEnter) appRepo.muteMediaVolume()
+        val state = _uiState.value
+        val order = prefsRepo.getFavoriteOrder(config.profile, state.pinnedByProfile[config.profile].orEmpty())
+        _uiState.update {
+            it.copy(
+                builtInContextConfigs = updated,
+                activeCustomContextId = null,
+                activeProfile = config.profile,
+                favoriteOrder = order
+            )
+        }
+    }
+
+    fun selectCustomContext(id: String) {
+        val ctx = _uiState.value.customContexts.firstOrNull { it.id == id } ?: return
+        if (ctx.muteMediaOnEnter) appRepo.muteMediaVolume()
+        _uiState.update {
+            it.copy(
+                activeCustomContextId = ctx.id,
+                favoriteOrder = ctx.favoriteOrder
+            )
+        }
+    }
+
+    fun saveCustomContext(profile: CustomContextProfile) {
+        val updated = prefsRepo.saveCustomContext(profile)
+        if (profile.muteMediaOnEnter) appRepo.muteMediaVolume()
+        _uiState.update {
+            it.copy(
+                customContexts = updated,
+                activeCustomContextId = profile.id,
+                favoriteOrder = profile.favoriteOrder
+            )
+        }
+    }
+
+    fun createCustomContext(name: String, monochromeIcons: Boolean = false) {
+        val created = prefsRepo.createCustomContext(name, monochromeIcons) ?: return
+        val updated = prefsRepo.getCustomContexts()
+        _uiState.update {
+            it.copy(
+                customContexts = updated,
+                activeCustomContextId = created.id,
+                favoriteOrder = created.favoriteOrder
+            )
+        }
+    }
+
+    fun deleteCustomContext(id: String) {
+        val updated = prefsRepo.deleteCustomContext(id)
+        _uiState.update { state ->
+            val clearActive = state.activeCustomContextId == id
+            val favProfile = if (state.activeProfile == ContextProfile.ALL) ContextProfile.WORK else state.activeProfile
+            state.copy(
+                customContexts = updated,
+                activeCustomContextId = if (clearActive) null else state.activeCustomContextId,
+                favoriteOrder = if (clearActive) {
+                    prefsRepo.getFavoriteOrder(favProfile, state.pinnedByProfile[favProfile].orEmpty())
+                } else {
+                    state.favoriteOrder
+                }
+            )
+        }
+    }
+
+    fun setAppsForActiveContext(packages: Set<String>) {
+        val state = _uiState.value
+        val customId = state.activeCustomContextId
+        if (customId != null) {
+            val updated = prefsRepo.setCustomContextPackages(customId, packages)
+            val order = updated.firstOrNull { it.id == customId }?.favoriteOrder.orEmpty()
+            _uiState.update { it.copy(customContexts = updated, favoriteOrder = order) }
+        } else {
+            val targetProfile = if (state.activeProfile == ContextProfile.ALL) {
+                ContextProfile.WORK
+            } else {
+                state.activeProfile
+            }
+            prefsRepo.savePinnedPackages(targetProfile, packages)
+            val order = prefsRepo.getFavoriteOrder(targetProfile, packages)
+            prefsRepo.saveFavoriteOrder(targetProfile, order)
+            _uiState.update {
+                it.copy(
+                    pinnedByProfile = it.pinnedByProfile + (targetProfile to packages),
+                    favoriteOrder = order
+                )
+            }
+        }
     }
 
     fun toggleAutoContext(enabled: Boolean) {
         prefsRepo.setAutoContextEnabled(enabled)
-        val nextProfile = if (enabled) prefsRepo.getCurrentTimeProfile() else _uiState.value.activeProfile
-        _uiState.update { it.copy(autoContextEnabled = enabled, activeProfile = nextProfile) }
+        val state = _uiState.value
+        val nextProfile = if (enabled) {
+            prefsRepo.resolveEffectiveContextProfile(
+                isCharging = appRepo.isDeviceCharging(),
+                isDndActive = appRepo.isDndActive()
+            )
+        } else {
+            state.activeProfile
+        }
+        val favProfile = if (nextProfile == ContextProfile.ALL) ContextProfile.WORK else nextProfile
+        val order = prefsRepo.getFavoriteOrder(favProfile, state.pinnedByProfile[favProfile].orEmpty())
+        _uiState.update {
+            it.copy(
+                autoContextEnabled = enabled,
+                activeProfile = nextProfile,
+                favoriteOrder = order
+            )
+        }
+    }
+
+    fun setAutoSleepOnCharge(enabled: Boolean) {
+        prefsRepo.setAutoSleepOnChargeEnabled(enabled)
+        _uiState.update { it.copy(autoSleepOnCharge = enabled) }
+        refreshTimeContextIfAuto()
+    }
+
+    fun setMonochromeInSleep(enabled: Boolean) {
+        prefsRepo.setMonochromeInSleepEnabled(enabled)
+        _uiState.update { it.copy(monochromeInSleep = enabled) }
+    }
+
+    fun startFocusTimer(minutes: Int = 25) {
+        focusTimerJob?.cancel()
+        val total = (minutes.coerceAtLeast(1)) * 60
+        val workPinned = _uiState.value.pinnedByProfile[ContextProfile.WORK].orEmpty()
+        val workOrder = prefsRepo.getFavoriteOrder(ContextProfile.WORK, workPinned)
+        _uiState.update {
+            it.copy(
+                activeProfile = ContextProfile.WORK,
+                favoriteOrder = workOrder,
+                focusSession = FocusSessionState(
+                    remainingSeconds = total,
+                    totalSeconds = total,
+                    isRunning = true
+                )
+            )
+        }
+        focusTimerJob = viewModelScope.launch {
+            for (sec in (total - 1) downTo 0) {
+                delay(1000L)
+                _uiState.update { state ->
+                    if (!state.focusSession.isRunning) return@update state
+                    state.copy(
+                        focusSession = state.focusSession.copy(
+                            remainingSeconds = sec,
+                            isRunning = sec > 0
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun stopFocusTimer() {
+        focusTimerJob?.cancel()
+        _uiState.update { it.copy(focusSession = FocusSessionState()) }
+        refreshTimeContextIfAuto()
     }
 
     fun onCommandQueryChanged(query: String) {
@@ -359,7 +609,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onAppClicked(app: AppInfo) {
-        if (app.packageName in _uiState.value.frictionPackages) {
+        val state = _uiState.value
+        val nonWorkDuringFocus = state.focusSession.isRunning &&
+            app.packageName !in state.pinnedByProfile[ContextProfile.WORK].orEmpty()
+        val restrictedByCustom = state.activeCustomContext?.let {
+            it.restrictOtherApps && app.packageName !in it.packages
+        } == true
+        val restrictedByBuiltIn = state.activeBuiltInConfig?.let {
+            it.restrictOtherApps && app.packageName !in state.pinnedByProfile[it.profile].orEmpty()
+        } == true
+        if (app.packageName in state.frictionPackages || nonWorkDuringFocus || restrictedByCustom || restrictedByBuiltIn) {
             startFrictionFlow(app)
         } else {
             launchAppDirect(app)
@@ -468,9 +727,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (profile == ContextProfile.ALL) return
         val apps = _uiState.value.installedApps
         val updatedSet = prefsRepo.togglePinnedPackage(profile, packageName, apps)
-        val updatedOrder = if (profile == ContextProfile.WORK) {
-            val order = prefsRepo.getFavoriteOrder(updatedSet)
-            prefsRepo.saveFavoriteOrder(order)
+        val activeFavProfile = if (_uiState.value.activeProfile == ContextProfile.ALL) {
+            ContextProfile.WORK
+        } else {
+            _uiState.value.activeProfile
+        }
+        val updatedOrder = if (profile == activeFavProfile) {
+            val order = prefsRepo.getFavoriteOrder(profile, updatedSet)
+            prefsRepo.saveFavoriteOrder(profile, order)
             order
         } else {
             _uiState.value.favoriteOrder
@@ -484,8 +748,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun moveFavorite(packageName: String, delta: Int) {
-        val currentFavs = _uiState.value.pinnedByProfile[ContextProfile.WORK].orEmpty()
-        val updatedOrder = prefsRepo.moveFavorite(packageName, delta, currentFavs)
+        val customId = _uiState.value.activeCustomContextId
+        if (customId != null) {
+            val updated = prefsRepo.moveFavoriteInCustomContext(customId, packageName, delta)
+            val order = updated.firstOrNull { it.id == customId }?.favoriteOrder.orEmpty()
+            _uiState.update { it.copy(customContexts = updated, favoriteOrder = order) }
+            return
+        }
+        val activeFavProfile = if (_uiState.value.activeProfile == ContextProfile.ALL) {
+            ContextProfile.WORK
+        } else {
+            _uiState.value.activeProfile
+        }
+        val currentFavs = _uiState.value.pinnedByProfile[activeFavProfile].orEmpty()
+        val updatedOrder = prefsRepo.moveFavorite(activeFavProfile, packageName, delta, currentFavs)
         _uiState.update { it.copy(favoriteOrder = updatedOrder) }
     }
 

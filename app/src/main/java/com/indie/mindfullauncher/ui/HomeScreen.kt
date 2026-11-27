@@ -8,7 +8,9 @@ import android.os.BatteryManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -99,6 +101,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
@@ -127,6 +131,7 @@ import kotlin.math.roundToInt
 import com.indie.mindfullauncher.domain.CommandResult
 import com.indie.mindfullauncher.model.AppInfo
 import com.indie.mindfullauncher.model.AppShortcutItem
+import com.indie.mindfullauncher.model.BuiltInContextConfig
 import com.indie.mindfullauncher.model.CalendarEventPreview
 import com.indie.mindfullauncher.model.ClockStyle
 import com.indie.mindfullauncher.model.ContextProfile
@@ -187,6 +192,15 @@ fun HomeScreen(
     onSetSmartSortEnabled: (Boolean) -> Unit = {},
     onToggleFriction: (String) -> Unit = {},
     onDismissPostSessionNudge: () -> Unit = {},
+    onSelectProfile: (ContextProfile) -> Unit = {},
+    onSelectCustomContext: (String) -> Unit = {},
+    onCreateCustomContext: (String, Boolean) -> Unit = { _, _ -> },
+    onSaveCustomContext: (com.indie.mindfullauncher.model.CustomContextProfile) -> Unit = {},
+    onSaveBuiltInContextConfig: (BuiltInContextConfig) -> Unit = {},
+    onDeleteCustomContext: (String) -> Unit = {},
+    onSetAppsForActiveContext: (Set<String>) -> Unit = {},
+    onStartFocusTimer: (Int) -> Unit = {},
+    onStopFocusTimer: () -> Unit = {},
     onOpenSettings: () -> Unit,
     onOpenDefaultLauncher: () -> Unit,
     onDismissSetupBanner: () -> Unit,
@@ -255,6 +269,11 @@ fun HomeScreen(
     var showNotesDialog by remember { mutableStateOf(false) }
     var showUsageDialog by remember { mutableStateOf(false) }
     var showSearchOptionsSheet by remember { mutableStateOf(false) }
+    var showContextSwitcherSheet by remember { mutableStateOf(false) }
+    var showContextAppPicker by remember { mutableStateOf(false) }
+    var editingCustomContext by remember { mutableStateOf<com.indie.mindfullauncher.model.CustomContextProfile?>(null) }
+    var editingBuiltInProfile by remember { mutableStateOf<ContextProfile?>(null) }
+    var isCreatingNewContext by remember { mutableStateOf(false) }
     var renameTargetApp by remember { mutableStateOf<AppInfo?>(null) }
 
     val isTwoColumn = LocalConfiguration.current.screenWidthDp >= 600 && state.twoColumnLargeScreen
@@ -277,8 +296,45 @@ fun HomeScreen(
         }
     }
 
-    val favoritePackages = remember(state.pinnedByProfile) {
-        state.pinnedByProfile[ContextProfile.WORK].orEmpty()
+    val activeCustom = state.activeCustomContext
+    val activeFavProfile = if (state.activeProfile == ContextProfile.ALL) {
+        ContextProfile.WORK
+    } else {
+        state.activeProfile
+    }
+    val favoritePackages = remember(state.pinnedByProfile, activeFavProfile, activeCustom) {
+        activeCustom?.packages ?: state.pinnedByProfile[activeFavProfile].orEmpty()
+    }
+    val ambientTargetColor = when {
+        state.focusSession.isRunning -> Color(0xFF4DB6AC)
+        activeCustom != null -> Color(activeCustom.colorHex)
+        else -> Color(
+            state.builtInContextConfigs[activeFavProfile]?.colorHex ?: when (activeFavProfile) {
+                ContextProfile.EVENING -> 0xFFFFB74DL
+                ContextProfile.SLEEP -> 0xFF5C6BC0L
+                else -> 0xFF6B8CFFL
+            }
+        )
+    }
+    val ambientColor by animateColorAsState(
+        targetValue = ambientTargetColor,
+        animationSpec = tween(durationMillis = 650),
+        label = "ambient_context_color"
+    )
+    val cycleContext: (Int) -> Unit = { delta ->
+        val builtIns = listOf(ContextProfile.WORK, ContextProfile.EVENING, ContextProfile.SLEEP)
+        val total = builtIns.size + state.customContexts.size
+        val currentIdx = if (activeCustom != null) {
+            builtIns.size + state.customContexts.indexOfFirst { it.id == activeCustom.id }.coerceAtLeast(0)
+        } else {
+            builtIns.indexOf(activeFavProfile).coerceAtLeast(0)
+        }
+        val nextIdx = ((currentIdx + delta) % total + total) % total
+        if (nextIdx < builtIns.size) {
+            onSelectProfile(builtIns[nextIdx])
+        } else {
+            onSelectCustomContext(state.customContexts[nextIdx - builtIns.size].id)
+        }
     }
     val favoriteApps = remember(state.installedApps, favoritePackages, state.favoriteOrder, state.hiddenPackages) {
         val visibleFavs = state.installedApps.filter {
@@ -294,7 +350,7 @@ fun HomeScreen(
         state.weeklyUsageMillis,
         state.showMostUsedApps
     ) {
-        if (!state.showMostUsedApps || state.weeklyUsageMillis.isEmpty()) {
+        if (!state.showMostUsedApps || state.focusSession.isRunning || state.weeklyUsageMillis.isEmpty()) {
             emptyList()
         } else {
             state.installedApps
@@ -480,6 +536,23 @@ fun HomeScreen(
                 )
             }
     ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        ambientColor.copy(alpha = 0.22f),
+                        Color.Transparent
+                    ),
+                    center = Offset(size.width * 0.22f, size.height * 0.14f),
+                    radius = size.width * 0.85f
+                ),
+                radius = size.width * 0.85f,
+                center = Offset(size.width * 0.22f, size.height * 0.14f)
+            )
+            if (activeCustom == null && activeFavProfile == ContextProfile.SLEEP) {
+                drawRect(color = Color.Black.copy(alpha = 0.24f))
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -574,7 +647,28 @@ fun HomeScreen(
             }
 
             if (state.commandQuery.isEmpty() && !isTwoColumn && !isSearchExpanded && !isAlphabetMode) {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pointerInput(state.customContexts.size, state.activeProfile, state.activeCustomContextId) {
+                            var dragSum = 0f
+                            var switched = false
+                            detectHorizontalDragGestures(
+                                onDragStart = {
+                                    dragSum = 0f
+                                    switched = false
+                                },
+                                onHorizontalDrag = { _, dragAmount ->
+                                    dragSum += dragAmount
+                                    if (!switched && kotlin.math.abs(dragSum) > 56f) {
+                                        switched = true
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        cycleContext(if (dragSum < 0f) 1 else -1)
+                                    }
+                                }
+                            )
+                        }
+                ) {
                     NiagaraClockHeader(
                         timeStr = timeStr,
                         hourStr = hourStr,
@@ -595,6 +689,101 @@ fun HomeScreen(
 
                     val showOnboarding = !state.isSetupBannerDismissed && !state.isDefaultLauncher
                     val pendingNotesCount = state.notes.count { !it.isDone }
+                    val activeContextLabel = activeCustom?.name ?: activeFavProfile.displayName
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .combinedClickable(
+                                onClick = { showContextSwitcherSheet = true },
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (state.focusSession.isRunning) onStopFocusTimer() else onStartFocusTimer(25)
+                                }
+                            )
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(ambientColor)
+                        )
+                        Text(
+                            text = activeContextLabel,
+                            color = colors.onSurfaceVariant,
+                            style = typography.labelMedium.copy(shadow = onWallpaperShadow)
+                        )
+                    }
+
+                    if (state.focusSession.isRunning) {
+                        val focus = state.focusSession
+                        val mm = focus.remainingSeconds / 60
+                        val ss = focus.remainingSeconds % 60
+                        val progress = if (focus.totalSeconds > 0) {
+                            focus.remainingSeconds.toFloat() / focus.totalSeconds.toFloat()
+                        } else {
+                            0f
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = ambientColor.copy(alpha = 0.14f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.size(38.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        drawArc(
+                                            color = ambientColor.copy(alpha = 0.25f),
+                                            startAngle = -90f,
+                                            sweepAngle = 360f,
+                                            useCenter = false,
+                                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                                        )
+                                        drawArc(
+                                            color = ambientColor,
+                                            startAngle = -90f,
+                                            sweepAngle = 360f * progress,
+                                            useCenter = false,
+                                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                                        )
+                                    }
+                                    Text(
+                                        text = String.format(Locale.US, "%d", (focus.remainingSeconds + 59) / 60),
+                                        color = ambientColor,
+                                        style = typography.labelSmall
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = String.format(Locale.US, "Chế độ Tập trung · %02d:%02d", mm, ss),
+                                        color = colors.onSurface,
+                                        style = typography.labelLarge
+                                    )
+                                    Text(
+                                        text = "Chỉ giữ lại ứng dụng Làm việc",
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.bodySmall
+                                    )
+                                }
+                                TextButton(onClick = onStopFocusTimer) {
+                                    Text("Kết thúc", color = ambientColor)
+                                }
+                            }
+                        }
+                    }
                     if (showOnboarding || summaryItems.isNotEmpty() || state.notes.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
                         FlowRow(
@@ -677,7 +866,7 @@ fun HomeScreen(
                         NiagaraMediaCard(
                             media = state.mediaPlayback,
                             iconPackPackage = state.selectedIconPack,
-                            monochromeIcons = state.monochromeIcons,
+                            monochromeIcons = state.effectiveMonochromeIcons,
                             onTogglePlayPause = onToggleMediaPlayPause,
                             onNext = onSkipMediaNext,
                             onPrevious = onSkipMediaPrevious
@@ -763,7 +952,7 @@ fun HomeScreen(
                             NiagaraMediaCard(
                                 media = state.mediaPlayback,
                                 iconPackPackage = state.selectedIconPack,
-                                monochromeIcons = state.monochromeIcons,
+                                monochromeIcons = state.effectiveMonochromeIcons,
                                 onTogglePlayPause = onToggleMediaPlayPause,
                                 onNext = onSkipMediaNext,
                                 onPrevious = onSkipMediaPrevious
@@ -925,7 +1114,7 @@ fun HomeScreen(
                                         iconSize = iconSizeDp,
                                         showLabel = true,
                                         iconPackPackage = state.selectedIconPack,
-                                        monochromeIcons = state.monochromeIcons,
+                                        monochromeIcons = state.effectiveMonochromeIcons,
                                         iconShape = state.iconShapePreset,
                                         textShadow = onWallpaperShadow,
                                         onClick = {
@@ -981,7 +1170,7 @@ fun HomeScreen(
                                         iconSize = iconSizeDp,
                                         showLabel = true,
                                         iconPackPackage = state.selectedIconPack,
-                                        monochromeIcons = state.monochromeIcons,
+                                        monochromeIcons = state.effectiveMonochromeIcons,
                                         iconShape = state.iconShapePreset,
                                         subtitle = subtitle,
                                         textShadow = onWallpaperShadow,
@@ -1041,7 +1230,7 @@ fun HomeScreen(
                                                     iconSize = iconSizeDp,
                                                     showLabel = true,
                                                     iconPackPackage = state.selectedIconPack,
-                                                    monochromeIcons = state.monochromeIcons,
+                                                    monochromeIcons = state.effectiveMonochromeIcons,
                                                     iconShape = state.iconShapePreset,
                                                     textShadow = onWallpaperShadow,
                                                     onClick = { onAppClick(entry.app) },
@@ -1162,7 +1351,7 @@ fun HomeScreen(
                                             iconSize = iconSizeDp,
                                             showLabel = !state.hideFavoriteLabels,
                                             iconPackPackage = state.selectedIconPack,
-                                            monochromeIcons = state.monochromeIcons,
+                                            monochromeIcons = state.effectiveMonochromeIcons,
                                             iconShape = state.iconShapePreset,
                                             textShadow = onWallpaperShadow,
                                             onClick = { activeFolder = folder }
@@ -1170,7 +1359,7 @@ fun HomeScreen(
                                     }
                                     items(favoriteApps, key = { it.packageName }) { app ->
                                         val notifPreview = if (
-                                            state.showNotificationPreviews &&
+                                            state.effectiveShowNotifications &&
                                             app.packageName !in state.summaryPackages
                                         ) {
                                             state.notificationPreviews[app.packageName]
@@ -1182,7 +1371,7 @@ fun HomeScreen(
                                             iconSize = iconSizeDp,
                                             showLabel = !state.hideFavoriteLabels,
                                             iconPackPackage = state.selectedIconPack,
-                                            monochromeIcons = state.monochromeIcons,
+                                            monochromeIcons = state.effectiveMonochromeIcons,
                                             iconShape = state.iconShapePreset,
                                             notificationPreview = notifPreview,
                                             textShadow = onWallpaperShadow,
@@ -1226,7 +1415,7 @@ fun HomeScreen(
                                                 iconSize = iconSizeDp,
                                                 showLabel = !state.hideFavoriteLabels,
                                                 iconPackPackage = state.selectedIconPack,
-                                                monochromeIcons = state.monochromeIcons,
+                                                monochromeIcons = state.effectiveMonochromeIcons,
                                                 iconShape = state.iconShapePreset,
                                                 textShadow = onWallpaperShadow,
                                                 onClick = {
@@ -1254,7 +1443,7 @@ fun HomeScreen(
                                                 iconSize = iconSizeDp,
                                                 showLabel = !state.hideFavoriteLabels,
                                                 iconPackPackage = state.selectedIconPack,
-                                                monochromeIcons = state.monochromeIcons,
+                                                monochromeIcons = state.effectiveMonochromeIcons,
                                                 iconShape = state.iconShapePreset,
                                                 textShadow = onWallpaperShadow,
                                                 onClick = {
@@ -1288,7 +1477,7 @@ fun HomeScreen(
             }
         }
 
-        if (state.showAlphabetWave && !isSearchActive && scrubberLetters.isNotEmpty()) {
+        if (state.showAlphabetWave && !isSearchActive && !state.focusSession.isRunning && scrubberLetters.isNotEmpty()) {
             AlphabetScrubber(
                 letters = scrubberLetters,
                 isFavoritesActive = !isAlphabetMode,
@@ -1323,7 +1512,7 @@ fun HomeScreen(
             shortcuts = withContext(Dispatchers.IO) { onLoadShortcuts(selected.packageName) }
         }
         val popupWidgetId = state.appPopupWidgets[selected.packageName] ?: -1
-        val notifPreview = if (state.showNotificationPreviews) {
+        val notifPreview = if (state.effectiveShowNotifications) {
             state.notificationPreviews[selected.packageName]
         } else {
             null
@@ -1334,7 +1523,7 @@ fun HomeScreen(
             popupWidgetId = popupWidgetId,
             notificationPreview = notifPreview,
             iconPackPackage = state.selectedIconPack,
-            monochromeIcons = state.monochromeIcons,
+            monochromeIcons = state.effectiveMonochromeIcons,
             onDismiss = { popupApp = null },
             onOpenApp = {
                 popupApp = null
@@ -1377,7 +1566,7 @@ fun HomeScreen(
             isSummarized = selected.packageName in state.summaryPackages,
             isFrictionEnabled = selected.packageName in state.frictionPackages,
             iconPackPackage = state.selectedIconPack,
-            monochromeIcons = state.monochromeIcons,
+            monochromeIcons = state.effectiveMonochromeIcons,
             onDismiss = { optionsApp = null },
             onLaunchShortcut = { sc ->
                 onLaunchShortcut(sc.packageName, sc.id)
@@ -1447,7 +1636,7 @@ fun HomeScreen(
                 folder = freshFolder,
                 apps = folderApps,
                 iconPackPackage = state.selectedIconPack,
-                monochromeIcons = state.monochromeIcons,
+                monochromeIcons = state.effectiveMonochromeIcons,
                 onDismiss = { activeFolder = null },
                 onAppClick = { app ->
                     activeFolder = null
@@ -1484,7 +1673,7 @@ fun HomeScreen(
             app = app,
             preview = preview,
             iconPackPackage = state.selectedIconPack,
-            monochromeIcons = state.monochromeIcons,
+            monochromeIcons = state.effectiveMonochromeIcons,
             onDismiss = { activeNotificationPair = null },
             onOpenApp = {
                 activeNotificationPair = null
@@ -1502,7 +1691,7 @@ fun HomeScreen(
         NotificationSummaryDialog(
             items = summaryItems,
             iconPackPackage = state.selectedIconPack,
-            monochromeIcons = state.monochromeIcons,
+            monochromeIcons = state.effectiveMonochromeIcons,
             onDismiss = { showSummaryDialog = false },
             onOpenApp = { app ->
                 showSummaryDialog = false
@@ -1552,7 +1741,7 @@ fun HomeScreen(
             installedApps = state.installedApps,
             weeklyUsageMillis = state.weeklyUsageMillis,
             iconPackPackage = state.selectedIconPack,
-            monochromeIcons = state.monochromeIcons,
+            monochromeIcons = state.effectiveMonochromeIcons,
             onDismiss = { showUsageDialog = false }
         )
     }
@@ -1585,6 +1774,132 @@ fun HomeScreen(
             onSave = { newName ->
                 onRenameApp(app.packageName, newName)
                 renameTargetApp = null
+            }
+        )
+    }
+
+    if (showContextSwitcherSheet) {
+        ContextSwitcherSheet(
+            activeProfile = state.activeProfile,
+            activeCustomContextId = state.activeCustomContextId,
+            customContexts = state.customContexts,
+            builtInConfigs = state.builtInContextConfigs,
+            pinnedByProfile = state.pinnedByProfile,
+            isFocusRunning = state.focusSession.isRunning,
+            onDismiss = { showContextSwitcherSheet = false },
+            onSelectBuiltIn = onSelectProfile,
+            onSelectCustom = onSelectCustomContext,
+            onPickAppsForBuiltIn = { profile ->
+                onSelectProfile(profile)
+                showContextAppPicker = true
+            },
+            onPickAppsForCustom = { ctx ->
+                onSelectCustomContext(ctx.id)
+                showContextAppPicker = true
+            },
+            onEditBuiltInContext = { profile ->
+                editingBuiltInProfile = profile
+            },
+            onEditCustomContext = { ctx ->
+                editingCustomContext = ctx
+                isCreatingNewContext = false
+            },
+            onCreateCustomContext = {
+                editingCustomContext = null
+                isCreatingNewContext = true
+            },
+            onStartFocus = { onStartFocusTimer(25) },
+            onStopFocus = onStopFocusTimer
+        )
+    }
+
+    if (showContextAppPicker) {
+        val contextTitle = activeCustom?.name ?: activeFavProfile.displayName
+        ContextAppPickerDialog(
+            contextTitle = contextTitle,
+            isCustomContext = activeCustom != null,
+            installedApps = state.installedApps,
+            selectedPackages = favoritePackages,
+            iconPackPackage = state.selectedIconPack,
+            monochromeIcons = state.effectiveMonochromeIcons,
+            onDismiss = { showContextAppPicker = false },
+            onSave = onSetAppsForActiveContext,
+            onDeleteContext = activeCustom?.let { ctx -> { onDeleteCustomContext(ctx.id) } }
+        )
+    }
+
+    if (isCreatingNewContext || editingCustomContext != null) {
+        ContextModeEditorSheet(
+            initialProfile = editingCustomContext,
+            isBuiltIn = false,
+            installedApps = state.installedApps,
+            initialPackages = editingCustomContext?.packages ?: emptySet(),
+            iconPackPackage = state.selectedIconPack,
+            onDismiss = {
+                isCreatingNewContext = false
+                editingCustomContext = null
+            },
+            onSave = { saved ->
+                onSaveCustomContext(saved)
+            },
+            onDelete = { id ->
+                onDeleteCustomContext(id)
+            }
+        )
+    }
+
+    editingBuiltInProfile?.let { profile ->
+        val cfg = state.builtInContextConfigs[profile] ?: BuiltInContextConfig(
+            profile = profile,
+            colorHex = when (profile) {
+                ContextProfile.EVENING -> 0xFFFFB74DL
+                ContextProfile.SLEEP -> 0xFF5C6BC0L
+                else -> 0xFF6B8CFFL
+            }
+        )
+        val builtInPkgs = state.pinnedByProfile[profile].orEmpty()
+        val proxy = com.indie.mindfullauncher.model.CustomContextProfile(
+            id = profile.name,
+            name = profile.displayName,
+            colorHex = cfg.colorHex,
+            packages = builtInPkgs,
+            restrictOtherApps = cfg.restrictOtherApps,
+            hideNotifications = cfg.hideNotifications,
+            monochromeIcons = cfg.monochromeIcons,
+            oledPureBlack = cfg.oledPureBlack,
+            muteMediaOnEnter = cfg.muteMediaOnEnter,
+            autoTimeStartHour = cfg.autoTimeStartHour,
+            autoTimeEndHour = cfg.autoTimeEndHour,
+            autoOnHeadphones = cfg.autoOnHeadphones,
+            autoOnCharging = cfg.autoOnCharging
+        )
+        ContextModeEditorSheet(
+            initialProfile = proxy,
+            isBuiltIn = true,
+            installedApps = state.installedApps,
+            initialPackages = builtInPkgs,
+            iconPackPackage = state.selectedIconPack,
+            onDismiss = { editingBuiltInProfile = null },
+            onSavePackages = { updatedPkgs ->
+                onSelectProfile(profile)
+                onSetAppsForActiveContext(updatedPkgs)
+            },
+            onSave = { edited ->
+                onSaveBuiltInContextConfig(
+                    BuiltInContextConfig(
+                        profile = profile,
+                        colorHex = edited.colorHex,
+                        restrictOtherApps = edited.restrictOtherApps,
+                        hideNotifications = edited.hideNotifications,
+                        monochromeIcons = edited.monochromeIcons,
+                        oledPureBlack = edited.oledPureBlack,
+                        muteMediaOnEnter = edited.muteMediaOnEnter,
+                        autoTimeStartHour = edited.autoTimeStartHour,
+                        autoTimeEndHour = edited.autoTimeEndHour,
+                        autoOnHeadphones = edited.autoOnHeadphones,
+                        autoOnCharging = edited.autoOnCharging
+                    )
+                )
             }
         )
     }

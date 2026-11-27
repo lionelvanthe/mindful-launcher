@@ -264,6 +264,9 @@ fun SettingsScreen(
     onSetShowMediaPlayer: (Boolean) -> Unit,
     onSetSmartSortEnabled: (Boolean) -> Unit,
     onSetShowMostUsedApps: (Boolean) -> Unit,
+    onToggleAutoContext: (Boolean) -> Unit = {},
+    onSetAutoSleepOnCharge: (Boolean) -> Unit = {},
+    onSetMonochromeInSleep: (Boolean) -> Unit = {},
     onOpenNotificationSettings: () -> Unit,
     onOpenUsageSettings: () -> Unit,
     onPickWidget: () -> Unit,
@@ -588,6 +591,24 @@ fun SettingsScreen(
             subtitle = "Hiện tối đa 3 app mở nhiều nhất gần đây",
             checked = state.showMostUsedApps,
             onCheckedChange = onSetShowMostUsedApps
+        )
+        SettingsSwitchRow(
+            title = "Tự chuyển ngữ cảnh theo giờ",
+            subtitle = "Tự động đổi màn hình Làm việc / Buổi tối / Đi ngủ",
+            checked = state.autoContextEnabled,
+            onCheckedChange = onToggleAutoContext
+        )
+        SettingsSwitchRow(
+            title = "Tự bật Đi ngủ khi sạc tối / DND",
+            subtitle = "Chuyển sang chế độ Đi ngủ khi cắm sạc sau 21:00 hoặc bật Không làm phiền",
+            checked = state.autoSleepOnCharge,
+            onCheckedChange = onSetAutoSleepOnCharge
+        )
+        SettingsSwitchRow(
+            title = "Icon đơn sắc ở chế độ Đi ngủ",
+            subtitle = "Giảm kích thích thị giác trước khi ngủ",
+            checked = state.monochromeInSleep,
+            onCheckedChange = onSetMonochromeInSleep
         )
         if (!state.hasUsagePermission) {
             Button(

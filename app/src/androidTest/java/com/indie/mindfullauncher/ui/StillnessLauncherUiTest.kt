@@ -12,8 +12,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.indie.mindfullauncher.domain.CommandResult
 import com.indie.mindfullauncher.model.AccentPreset
 import com.indie.mindfullauncher.model.AppInfo
+import com.indie.mindfullauncher.model.BuiltInContextConfig
 import com.indie.mindfullauncher.model.ClockStyle
 import com.indie.mindfullauncher.model.ContextProfile
+import com.indie.mindfullauncher.model.CustomContextProfile
+import com.indie.mindfullauncher.model.FocusSessionState
 import com.indie.mindfullauncher.model.IconShapePreset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -288,5 +291,312 @@ class StillnessLauncherUiTest {
         assertEquals(AccentPreset.AMBER, selectedAccent)
 
         composeRule.onNodeWithText("Zero-Telemetry").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun homeScreen_switchesContextFavoritesAndTriggersFocusTimer() {
+        var selectedProfile: ContextProfile? = null
+        var startedFocusMinutes = 0
+        val state = LauncherUiState(
+            activeProfile = ContextProfile.EVENING,
+            installedApps = sampleApps,
+            pinnedByProfile = mapOf(
+                ContextProfile.WORK to setOf("com.example.calendar"),
+                ContextProfile.EVENING to setOf("com.example.spotify")
+            ),
+            favoriteOrder = listOf("com.example.spotify"),
+            showWallpaperBackground = false,
+            isDefaultLauncher = true
+        )
+
+        composeRule.setContent {
+            StillnessTheme {
+                HomeScreen(
+                    state = state,
+                    onCommandQueryChanged = {},
+                    onSubmitCommand = {},
+                    onAppClick = {},
+                    onDialContact = {},
+                    onToggleFavorite = {},
+                    onMoveFavorite = { _, _ -> },
+                    onRerollUtility = {},
+                    onToggleHidden = {},
+                    onToggleSummary = {},
+                    onRenameApp = { _, _ -> },
+                    onPickPopupWidget = {},
+                    onClearPopupWidget = {},
+                    onCreateFolder = { _, _ -> },
+                    onToggleAppInFolder = { _, _ -> },
+                    onRenameFolder = { _, _ -> },
+                    onDeleteFolder = {},
+                    onRemovePinnedWidget = {},
+                    onLoadShortcuts = { emptyList() },
+                    onLaunchShortcut = { _, _ -> },
+                    onSetNiagaraButtonPackage = {},
+                    onToggleMediaPlayPause = {},
+                    onSkipMediaNext = {},
+                    onSkipMediaPrevious = {},
+                    onDismissNotification = {},
+                    onSendNotificationReply = { _, _ -> false },
+                    onOpenAppInfo = {},
+                    onUninstallApp = {},
+                    onToggleNote = {},
+                    onDeleteNote = {},
+                    onSelectProfile = { selectedProfile = it },
+                    onStartFocusTimer = { startedFocusMinutes = it },
+                    onOpenSettings = {},
+                    onOpenDefaultLauncher = {},
+                    onDismissSetupBanner = {},
+                    onDismissTipsBanner = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Spotify").assertIsDisplayed()
+        composeRule.onNodeWithText("Buổi tối").performClick()
+        composeRule.onNodeWithText("Ngữ cảnh màn hình chính").assertIsDisplayed()
+        composeRule.onNodeWithText("Làm việc").performClick()
+        assertEquals(ContextProfile.WORK, selectedProfile)
+
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Buổi tối").performClick()
+        composeRule.onNodeWithText("Bắt đầu Tập trung (25p)").performClick()
+        assertEquals(25, startedFocusMinutes)
+    }
+
+    @Test
+    fun homeScreen_customContextShowsAppsAndAllowsCreatingAndPickingApps() {
+        var createdName: String? = null
+        var savedPackages: Set<String>? = null
+        val customCtx = CustomContextProfile(
+            id = "ctx-1",
+            name = "Học tập",
+            packages = setOf("com.example.notes"),
+            favoriteOrder = listOf("com.example.notes")
+        )
+        val state = LauncherUiState(
+            installedApps = sampleApps,
+            customContexts = listOf(customCtx),
+            activeCustomContextId = "ctx-1",
+            favoriteOrder = listOf("com.example.notes"),
+            showWallpaperBackground = false,
+            isDefaultLauncher = true
+        )
+
+        composeRule.setContent {
+            StillnessTheme {
+                HomeScreen(
+                    state = state,
+                    onCommandQueryChanged = {},
+                    onSubmitCommand = {},
+                    onAppClick = {},
+                    onDialContact = {},
+                    onToggleFavorite = {},
+                    onMoveFavorite = { _, _ -> },
+                    onRerollUtility = {},
+                    onToggleHidden = {},
+                    onToggleSummary = {},
+                    onRenameApp = { _, _ -> },
+                    onPickPopupWidget = {},
+                    onClearPopupWidget = {},
+                    onCreateFolder = { _, _ -> },
+                    onToggleAppInFolder = { _, _ -> },
+                    onRenameFolder = { _, _ -> },
+                    onDeleteFolder = {},
+                    onRemovePinnedWidget = {},
+                    onLoadShortcuts = { emptyList() },
+                    onLaunchShortcut = { _, _ -> },
+                    onSetNiagaraButtonPackage = {},
+                    onToggleMediaPlayPause = {},
+                    onSkipMediaNext = {},
+                    onSkipMediaPrevious = {},
+                    onDismissNotification = {},
+                    onSendNotificationReply = { _, _ -> false },
+                    onOpenAppInfo = {},
+                    onUninstallApp = {},
+                    onToggleNote = {},
+                    onDeleteNote = {},
+                    onCreateCustomContext = { n, _ -> createdName = n },
+                    onSetAppsForActiveContext = { savedPackages = it },
+                    onOpenSettings = {},
+                    onOpenDefaultLauncher = {},
+                    onDismissSetupBanner = {},
+                    onDismissTipsBanner = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Học tập").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("Ngữ cảnh màn hình chính").assertIsDisplayed()
+    }
+
+    @Test
+    fun homeScreen_zenFocusModeDisplaysCountdownAndStopButton() {
+        var stopped = false
+        val state = LauncherUiState(
+            activeProfile = ContextProfile.WORK,
+            installedApps = sampleApps,
+            pinnedByProfile = mapOf(ContextProfile.WORK to setOf("com.example.calendar")),
+            favoriteOrder = listOf("com.example.calendar"),
+            focusSession = FocusSessionState(
+                remainingSeconds = 24 * 60 + 59,
+                totalSeconds = 25 * 60,
+                isRunning = true
+            ),
+            showWallpaperBackground = false,
+            isDefaultLauncher = true
+        )
+
+        composeRule.setContent {
+            StillnessTheme {
+                HomeScreen(
+                    state = state,
+                    onCommandQueryChanged = {},
+                    onSubmitCommand = {},
+                    onAppClick = {},
+                    onDialContact = {},
+                    onToggleFavorite = {},
+                    onMoveFavorite = { _, _ -> },
+                    onRerollUtility = {},
+                    onToggleHidden = {},
+                    onToggleSummary = {},
+                    onRenameApp = { _, _ -> },
+                    onPickPopupWidget = {},
+                    onClearPopupWidget = {},
+                    onCreateFolder = { _, _ -> },
+                    onToggleAppInFolder = { _, _ -> },
+                    onRenameFolder = { _, _ -> },
+                    onDeleteFolder = {},
+                    onRemovePinnedWidget = {},
+                    onLoadShortcuts = { emptyList() },
+                    onLaunchShortcut = { _, _ -> },
+                    onSetNiagaraButtonPackage = {},
+                    onToggleMediaPlayPause = {},
+                    onSkipMediaNext = {},
+                    onSkipMediaPrevious = {},
+                    onDismissNotification = {},
+                    onSendNotificationReply = { _, _ -> false },
+                    onOpenAppInfo = {},
+                    onUninstallApp = {},
+                    onToggleNote = {},
+                    onDeleteNote = {},
+                    onStopFocusTimer = { stopped = true },
+                    onOpenSettings = {},
+                    onOpenDefaultLauncher = {},
+                    onDismissSetupBanner = {},
+                    onDismissTipsBanner = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Chế độ Tập trung · 24:59").assertIsDisplayed()
+        composeRule.onNodeWithText("Chỉ giữ lại ứng dụng Làm việc").assertIsDisplayed()
+        composeRule.onNodeWithText("Kết thúc").performClick()
+        assertTrue(stopped)
+    }
+
+    @Test
+    fun contextModeEditorSheet_configuresAutoTriggersRestrictionsAndSettings() {
+        var savedProfile: CustomContextProfile? = null
+        val initial = CustomContextProfile(
+            id = "mode-study",
+            name = "Học tập"
+        )
+
+        composeRule.setContent {
+            StillnessTheme {
+                ContextModeEditorSheet(
+                    initialProfile = initial,
+                    installedApps = sampleApps,
+                    onDismiss = {},
+                    onSave = { savedProfile = it }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Tùy chỉnh chế độ").assertIsDisplayed()
+        composeRule.onNodeWithText("Chọn ứng dụng (0 đã chọn)").performClick()
+        composeRule.onNodeWithText("Calendar").performClick()
+        composeRule.onNodeWithText("Lưu").performClick()
+        composeRule.onNodeWithText("Chọn ứng dụng (1 đã chọn)").assertIsDisplayed()
+
+        composeRule.onNodeWithText("Khi kết nối tai nghe / Bluetooth").performScrollTo().performClick()
+        composeRule.onNodeWithText("19–22h").performScrollTo().performClick()
+        composeRule.onNodeWithText("Hạn chế ứng dụng ngoài chế độ (dừng 5s)").performScrollTo().performClick()
+        composeRule.onNodeWithText("Nền đen thuần OLED (Ẩn hình nền)").performScrollTo().performClick()
+        composeRule.onNodeWithText("Hoàn tất").performScrollTo().performClick()
+
+        assertEquals(setOf("com.example.calendar"), savedProfile?.packages)
+
+        assertEquals(true, savedProfile?.autoOnHeadphones)
+        assertEquals(19, savedProfile?.autoTimeStartHour)
+        assertEquals(22, savedProfile?.autoTimeEndHour)
+        assertEquals(true, savedProfile?.restrictOtherApps)
+        assertEquals(true, savedProfile?.oledPureBlack)
+    }
+
+    @Test
+    fun homeScreen_builtInContextCanEditSettingsViaModeEditor() {
+        var savedBuiltIn: BuiltInContextConfig? = null
+        val state = LauncherUiState(
+            activeProfile = ContextProfile.WORK,
+            installedApps = sampleApps,
+            pinnedByProfile = mapOf(ContextProfile.WORK to setOf("com.example.calendar")),
+            favoriteOrder = listOf("com.example.calendar"),
+            showWallpaperBackground = false,
+            isDefaultLauncher = true
+        )
+
+        composeRule.setContent {
+            StillnessTheme {
+                HomeScreen(
+                    state = state,
+                    onCommandQueryChanged = {},
+                    onSubmitCommand = {},
+                    onAppClick = {},
+                    onDialContact = {},
+                    onToggleFavorite = {},
+                    onMoveFavorite = { _, _ -> },
+                    onRerollUtility = {},
+                    onToggleHidden = {},
+                    onToggleSummary = {},
+                    onRenameApp = { _, _ -> },
+                    onPickPopupWidget = {},
+                    onClearPopupWidget = {},
+                    onCreateFolder = { _, _ -> },
+                    onToggleAppInFolder = { _, _ -> },
+                    onRenameFolder = { _, _ -> },
+                    onDeleteFolder = {},
+                    onRemovePinnedWidget = {},
+                    onLoadShortcuts = { emptyList() },
+                    onLaunchShortcut = { _, _ -> },
+                    onSetNiagaraButtonPackage = {},
+                    onToggleMediaPlayPause = {},
+                    onSkipMediaNext = {},
+                    onSkipMediaPrevious = {},
+                    onDismissNotification = {},
+                    onSendNotificationReply = { _, _ -> false },
+                    onOpenAppInfo = {},
+                    onUninstallApp = {},
+                    onToggleNote = {},
+                    onDeleteNote = {},
+                    onSaveBuiltInContextConfig = { savedBuiltIn = it },
+                    onOpenSettings = {},
+                    onOpenDefaultLauncher = {},
+                    onDismissSetupBanner = {},
+                    onDismissTipsBanner = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Làm việc").performClick()
+        composeRule.onNodeWithText("Ngữ cảnh màn hình chính").assertIsDisplayed()
+        composeRule.onAllNodes(androidx.compose.ui.test.hasText("Tùy chỉnh"))[0].performClick()
+        composeRule.onNodeWithText("Tùy chỉnh chế độ").assertIsDisplayed()
+        composeRule.onNodeWithText("Hạn chế ứng dụng ngoài chế độ (dừng 5s)").performScrollTo().performClick()
+        composeRule.onNodeWithText("Hoàn tất").performScrollTo().performClick()
+
+        assertEquals(ContextProfile.WORK, savedBuiltIn?.profile)
+        assertEquals(true, savedBuiltIn?.restrictOtherApps)
     }
 }

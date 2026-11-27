@@ -3,8 +3,10 @@ package com.indie.mindfullauncher.data
 import android.content.Context
 import com.indie.mindfullauncher.model.AccentPreset
 import com.indie.mindfullauncher.model.AppInfo
+import com.indie.mindfullauncher.model.BuiltInContextConfig
 import com.indie.mindfullauncher.model.ClockStyle
 import com.indie.mindfullauncher.model.ContextProfile
+import com.indie.mindfullauncher.model.CustomContextProfile
 import com.indie.mindfullauncher.model.FontPreset
 import com.indie.mindfullauncher.model.IconShapePreset
 import com.indie.mindfullauncher.model.IconSizePreset
@@ -75,8 +77,16 @@ class PreferencesRepository(context: Context) {
         prefs.edit().putBoolean(KEY_HIDE_STATUS_BAR, hide).apply()
     }
 
-    fun getFavoriteOrder(favorites: Set<String>): List<String> {
-        val raw = prefs.getString(KEY_FAVORITE_ORDER, null)
+    fun getFavoriteOrder(favorites: Set<String>): List<String> =
+        getFavoriteOrder(ContextProfile.WORK, favorites)
+
+    fun getFavoriteOrder(profile: ContextProfile, favorites: Set<String>): List<String> {
+        val key = if (profile == ContextProfile.WORK || profile == ContextProfile.ALL) {
+            KEY_FAVORITE_ORDER
+        } else {
+            "${KEY_FAVORITE_ORDER}_${profile.name}"
+        }
+        val raw = prefs.getString(key, null)
         val saved = if (raw != null) {
             runCatching {
                 val arr = JSONArray(raw)
@@ -92,19 +102,34 @@ class PreferencesRepository(context: Context) {
         return valid + remaining
     }
 
-    fun saveFavoriteOrder(order: List<String>) {
-        prefs.edit().putString(KEY_FAVORITE_ORDER, JSONArray(order).toString()).apply()
+    fun saveFavoriteOrder(order: List<String>) = saveFavoriteOrder(ContextProfile.WORK, order)
+
+    fun saveFavoriteOrder(profile: ContextProfile, order: List<String>) {
+        val key = if (profile == ContextProfile.WORK || profile == ContextProfile.ALL) {
+            KEY_FAVORITE_ORDER
+        } else {
+            "${KEY_FAVORITE_ORDER}_${profile.name}"
+        }
+        prefs.edit().putString(key, JSONArray(order).toString()).apply()
     }
 
-    fun moveFavorite(packageName: String, delta: Int, currentFavorites: Set<String>): List<String> {
-        val order = getFavoriteOrder(currentFavorites).toMutableList()
+    fun moveFavorite(packageName: String, delta: Int, currentFavorites: Set<String>): List<String> =
+        moveFavorite(ContextProfile.WORK, packageName, delta, currentFavorites)
+
+    fun moveFavorite(
+        profile: ContextProfile,
+        packageName: String,
+        delta: Int,
+        currentFavorites: Set<String>
+    ): List<String> {
+        val order = getFavoriteOrder(profile, currentFavorites).toMutableList()
         val idx = order.indexOf(packageName)
         if (idx < 0) return order
         val target = (idx + delta).coerceIn(0, order.lastIndex)
         if (target != idx) {
             val item = order.removeAt(idx)
             order.add(target, item)
-            saveFavoriteOrder(order)
+            saveFavoriteOrder(profile, order)
         }
         return order
     }
@@ -474,6 +499,115 @@ class PreferencesRepository(context: Context) {
         }
     }
 
+    fun isAutoSleepOnChargeEnabled(): Boolean = prefs.getBoolean(KEY_AUTO_SLEEP_ON_CHARGE, true)
+
+    fun setAutoSleepOnChargeEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_SLEEP_ON_CHARGE, enabled).apply()
+    }
+
+    fun isMonochromeInSleepEnabled(): Boolean = prefs.getBoolean(KEY_MONOCHROME_IN_SLEEP, true)
+
+    fun setMonochromeInSleepEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_MONOCHROME_IN_SLEEP, enabled).apply()
+    }
+
+    fun resolveEffectiveContextProfile(
+        hourOfDay: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
+        isCharging: Boolean = false,
+        isDndActive: Boolean = false,
+        isHeadphonesConnected: Boolean = false
+    ): ContextProfile {
+        val configs = getBuiltInContextConfigs()
+        val matched = listOf(ContextProfile.SLEEP, ContextProfile.WORK, ContextProfile.EVENING).firstOrNull { p ->
+            val cfg = configs[p] ?: return@firstOrNull false
+            val matchesHeadphones = cfg.autoOnHeadphones && isHeadphonesConnected
+            val matchesCharging = cfg.autoOnCharging && isCharging && (p != ContextProfile.SLEEP || hourOfDay >= 21 || hourOfDay < 6)
+            val start = cfg.autoTimeStartHour
+            val end = cfg.autoTimeEndHour
+            val matchesTime = if (start != null && end != null) {
+                if (start <= end) hourOfDay in start until end
+                else hourOfDay >= start || hourOfDay < end
+            } else {
+                false
+            }
+            matchesHeadphones || matchesCharging || (p == ContextProfile.SLEEP && isAutoSleepOnChargeEnabled() && isDndActive) || matchesTime
+        }
+        return matched ?: getCurrentTimeProfile(hourOfDay)
+    }
+
+    private fun defaultBuiltInConfig(profile: ContextProfile): BuiltInContextConfig = when (profile) {
+        ContextProfile.WORK -> BuiltInContextConfig(
+            profile = ContextProfile.WORK,
+            colorHex = 0xFF6B8CFFL,
+            autoTimeStartHour = 8,
+            autoTimeEndHour = 17
+        )
+        ContextProfile.EVENING -> BuiltInContextConfig(
+            profile = ContextProfile.EVENING,
+            colorHex = 0xFFFFB74DL,
+            autoTimeStartHour = 17,
+            autoTimeEndHour = 22
+        )
+        ContextProfile.SLEEP, ContextProfile.ALL -> BuiltInContextConfig(
+            profile = ContextProfile.SLEEP,
+            colorHex = 0xFF5C6BC0L,
+            monochromeIcons = isMonochromeInSleepEnabled(),
+            autoTimeStartHour = 22,
+            autoTimeEndHour = 6,
+            autoOnCharging = isAutoSleepOnChargeEnabled()
+        )
+    }
+
+    fun getBuiltInContextConfigs(): Map<ContextProfile, BuiltInContextConfig> {
+        val defaults = listOf(ContextProfile.WORK, ContextProfile.EVENING, ContextProfile.SLEEP)
+            .associateWith { defaultBuiltInConfig(it) }
+        val raw = prefs.getString(KEY_BUILTIN_CONTEXT_CONFIGS, null) ?: return defaults
+        return runCatching {
+            val root = JSONObject(raw)
+            defaults.mapValues { (profile, def) ->
+                val obj = root.optJSONObject(profile.name) ?: return@mapValues def
+                def.copy(
+                    colorHex = obj.optLong("colorHex", def.colorHex),
+                    restrictOtherApps = obj.optBoolean("restrictOtherApps", def.restrictOtherApps),
+                    hideNotifications = obj.optBoolean("hideNotifications", def.hideNotifications),
+                    monochromeIcons = obj.optBoolean("monochromeIcons", def.monochromeIcons),
+                    oledPureBlack = obj.optBoolean("oledPureBlack", def.oledPureBlack),
+                    muteMediaOnEnter = obj.optBoolean("muteMediaOnEnter", def.muteMediaOnEnter),
+                    autoTimeStartHour = if (obj.has("autoTimeStartHour") && !obj.isNull("autoTimeStartHour")) obj.getInt("autoTimeStartHour") else null,
+                    autoTimeEndHour = if (obj.has("autoTimeEndHour") && !obj.isNull("autoTimeEndHour")) obj.getInt("autoTimeEndHour") else null,
+                    autoOnHeadphones = obj.optBoolean("autoOnHeadphones", def.autoOnHeadphones),
+                    autoOnCharging = obj.optBoolean("autoOnCharging", def.autoOnCharging)
+                )
+            }
+        }.getOrDefault(defaults)
+    }
+
+    fun saveBuiltInContextConfig(config: BuiltInContextConfig): Map<ContextProfile, BuiltInContextConfig> {
+        val updated = getBuiltInContextConfigs().toMutableMap().apply {
+            put(config.profile, config)
+        }
+        val root = JSONObject()
+        updated.forEach { (profile, cfg) ->
+            root.put(
+                profile.name,
+                JSONObject().apply {
+                    put("colorHex", cfg.colorHex)
+                    put("restrictOtherApps", cfg.restrictOtherApps)
+                    put("hideNotifications", cfg.hideNotifications)
+                    put("monochromeIcons", cfg.monochromeIcons)
+                    put("oledPureBlack", cfg.oledPureBlack)
+                    put("muteMediaOnEnter", cfg.muteMediaOnEnter)
+                    if (cfg.autoTimeStartHour != null) put("autoTimeStartHour", cfg.autoTimeStartHour)
+                    if (cfg.autoTimeEndHour != null) put("autoTimeEndHour", cfg.autoTimeEndHour)
+                    put("autoOnHeadphones", cfg.autoOnHeadphones)
+                    put("autoOnCharging", cfg.autoOnCharging)
+                }
+            )
+        }
+        prefs.edit().putString(KEY_BUILTIN_CONTEXT_CONFIGS, root.toString()).apply()
+        return updated
+    }
+
     fun getCurrentTimeProfile(hourOfDay: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)): ContextProfile {
         return when {
             hourOfDay in 8..17 -> ContextProfile.WORK
@@ -503,6 +637,162 @@ class PreferencesRepository(context: Context) {
         }
         savePinnedPackages(profile, current)
         return current
+    }
+
+    fun getCustomContexts(): List<CustomContextProfile> {
+        val raw = prefs.getString(KEY_CUSTOM_CONTEXTS, null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val pkgs = buildSet {
+                        val pArr = obj.optJSONArray("packages") ?: JSONArray()
+                        for (j in 0 until pArr.length()) add(pArr.getString(j))
+                    }
+                    val order = buildList {
+                        val oArr = obj.optJSONArray("favoriteOrder") ?: JSONArray()
+                        for (j in 0 until oArr.length()) add(oArr.getString(j))
+                    }
+                    add(
+                        CustomContextProfile(
+                            id = obj.getString("id"),
+                            name = obj.getString("name"),
+                            colorHex = obj.optLong("colorHex", 0xFF7CDC86),
+                            iconKey = obj.optString("iconKey", "spark"),
+                            packages = pkgs,
+                            favoriteOrder = order,
+                            restrictOtherApps = obj.optBoolean("restrictOtherApps", false),
+                            hideNotifications = obj.optBoolean("hideNotifications", false),
+                            monochromeIcons = obj.optBoolean("monochromeIcons", false),
+                            oledPureBlack = obj.optBoolean("oledPureBlack", false),
+                            muteMediaOnEnter = obj.optBoolean("muteMediaOnEnter", false),
+                            autoTimeStartHour = if (obj.has("autoTimeStartHour") && !obj.isNull("autoTimeStartHour")) obj.getInt("autoTimeStartHour") else null,
+                            autoTimeEndHour = if (obj.has("autoTimeEndHour") && !obj.isNull("autoTimeEndHour")) obj.getInt("autoTimeEndHour") else null,
+                            autoOnHeadphones = obj.optBoolean("autoOnHeadphones", false),
+                            autoOnCharging = obj.optBoolean("autoOnCharging", false)
+                        )
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun saveCustomContexts(contexts: List<CustomContextProfile>) {
+        val arr = JSONArray()
+        contexts.forEach { ctx ->
+            arr.put(
+                JSONObject().apply {
+                    put("id", ctx.id)
+                    put("name", ctx.name)
+                    put("colorHex", ctx.colorHex)
+                    put("iconKey", ctx.iconKey)
+                    put("packages", JSONArray(ctx.packages.toList()))
+                    put("favoriteOrder", JSONArray(ctx.favoriteOrder))
+                    put("restrictOtherApps", ctx.restrictOtherApps)
+                    put("hideNotifications", ctx.hideNotifications)
+                    put("monochromeIcons", ctx.monochromeIcons)
+                    put("oledPureBlack", ctx.oledPureBlack)
+                    put("muteMediaOnEnter", ctx.muteMediaOnEnter)
+                    if (ctx.autoTimeStartHour != null) put("autoTimeStartHour", ctx.autoTimeStartHour)
+                    if (ctx.autoTimeEndHour != null) put("autoTimeEndHour", ctx.autoTimeEndHour)
+                    put("autoOnHeadphones", ctx.autoOnHeadphones)
+                    put("autoOnCharging", ctx.autoOnCharging)
+                }
+            )
+        }
+        prefs.edit().putString(KEY_CUSTOM_CONTEXTS, arr.toString()).apply()
+    }
+
+    fun saveCustomContext(profile: CustomContextProfile): List<CustomContextProfile> {
+        val current = getCustomContexts()
+        val exists = current.any { it.id == profile.id }
+        val updated = if (exists) {
+            current.map { if (it.id == profile.id) profile else it }
+        } else {
+            current + profile
+        }
+        saveCustomContexts(updated)
+        return updated
+    }
+
+    fun resolveActiveCustomContext(
+        hourOfDay: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
+        isHeadphonesConnected: Boolean = false,
+        isCharging: Boolean = false
+    ): CustomContextProfile? {
+        return getCustomContexts().firstOrNull { ctx ->
+            val matchesHeadphones = ctx.autoOnHeadphones && isHeadphonesConnected
+            val matchesCharging = ctx.autoOnCharging && isCharging
+            val start = ctx.autoTimeStartHour
+            val end = ctx.autoTimeEndHour
+            val matchesTime = if (start != null && end != null) {
+                if (start <= end) hourOfDay in start until end
+                else hourOfDay >= start || hourOfDay < end
+            } else {
+                false
+            }
+            matchesHeadphones || matchesCharging || matchesTime
+        }
+    }
+
+    fun createCustomContext(name: String, monochromeIcons: Boolean = false): CustomContextProfile? {
+        val clean = name.trim()
+        if (clean.isEmpty()) return null
+        val created = CustomContextProfile(
+            id = UUID.randomUUID().toString(),
+            name = clean,
+            monochromeIcons = monochromeIcons
+        )
+        saveCustomContexts(getCustomContexts() + created)
+        return created
+    }
+
+    fun deleteCustomContext(id: String): List<CustomContextProfile> {
+        val updated = getCustomContexts().filterNot { it.id == id }
+        saveCustomContexts(updated)
+        return updated
+    }
+
+    fun setCustomContextPackages(id: String, packages: Set<String>): List<CustomContextProfile> {
+        val updated = getCustomContexts().map { ctx ->
+            if (ctx.id != id) ctx
+            else {
+                val validOrder = ctx.favoriteOrder.filter { it in packages }
+                val remaining = packages.filter { it !in validOrder }
+                ctx.copy(packages = packages, favoriteOrder = validOrder + remaining)
+            }
+        }
+        saveCustomContexts(updated)
+        return updated
+    }
+
+    fun toggleAppInCustomContext(id: String, packageName: String): List<CustomContextProfile> {
+        val target = getCustomContexts().firstOrNull { it.id == id } ?: return getCustomContexts()
+        val next = target.packages.toMutableSet()
+        if (!next.add(packageName)) next.remove(packageName)
+        return setCustomContextPackages(id, next)
+    }
+
+    fun moveFavoriteInCustomContext(id: String, packageName: String, delta: Int): List<CustomContextProfile> {
+        val updated = getCustomContexts().map { ctx ->
+            if (ctx.id != id) ctx
+            else {
+                val baseOrder = (ctx.favoriteOrder.filter { it in ctx.packages } +
+                    ctx.packages.filter { it !in ctx.favoriteOrder }).toMutableList()
+                val idx = baseOrder.indexOf(packageName)
+                if (idx >= 0) {
+                    val target = (idx + delta).coerceIn(0, baseOrder.lastIndex)
+                    if (target != idx) {
+                        val item = baseOrder.removeAt(idx)
+                        baseOrder.add(target, item)
+                    }
+                }
+                ctx.copy(favoriteOrder = baseOrder)
+            }
+        }
+        saveCustomContexts(updated)
+        return updated
     }
 
     fun getFrictionPackages(installedApps: List<AppInfo>): Set<String> {
@@ -654,6 +944,10 @@ class PreferencesRepository(context: Context) {
 
     companion object {
         private const val KEY_AUTO_CONTEXT = "auto_context_enabled"
+        private const val KEY_BUILTIN_CONTEXT_CONFIGS = "builtin_context_configs"
+        private const val KEY_CUSTOM_CONTEXTS = "custom_context_profiles"
+        private const val KEY_AUTO_SLEEP_ON_CHARGE = "auto_sleep_on_charge"
+        private const val KEY_MONOCHROME_IN_SLEEP = "monochrome_in_sleep"
         private const val KEY_SETUP_BANNER_DISMISSED = "setup_banner_dismissed"
         private const val KEY_TIPS_BANNER_DISMISSED = "tips_banner_dismissed"
         private const val KEY_PINNED_PREFIX = "pinned_"
