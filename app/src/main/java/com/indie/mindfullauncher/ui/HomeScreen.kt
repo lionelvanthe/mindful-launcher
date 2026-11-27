@@ -198,6 +198,7 @@ fun HomeScreen(
     onSaveCustomContext: (com.indie.mindfullauncher.model.CustomContextProfile) -> Unit = {},
     onSaveBuiltInContextConfig: (BuiltInContextConfig) -> Unit = {},
     onDeleteCustomContext: (String) -> Unit = {},
+    onRequirePro: () -> Unit = {},
     onSetAppsForActiveContext: (Set<String>) -> Unit = {},
     onStartFocusTimer: (Int) -> Unit = {},
     onStopFocusTimer: () -> Unit = {},
@@ -1853,8 +1854,12 @@ fun HomeScreen(
                 isCreatingNewContext = false
             },
             onCreateCustomContext = {
-                editingCustomContext = null
-                isCreatingNewContext = true
+                if (state.customContexts.isNotEmpty() && !state.isProUnlocked) {
+                    onRequirePro()
+                } else {
+                    editingCustomContext = null
+                    isCreatingNewContext = true
+                }
             },
             onStartFocus = { onStartFocusTimer(25) },
             onStopFocus = onStopFocusTimer
@@ -1880,6 +1885,7 @@ fun HomeScreen(
         ContextModeEditorSheet(
             initialProfile = editingCustomContext,
             isBuiltIn = false,
+            isProUnlocked = state.isProUnlocked,
             installedApps = state.installedApps,
             initialPackages = editingCustomContext?.packages ?: emptySet(),
             iconPackPackage = state.selectedIconPack,
@@ -1892,7 +1898,8 @@ fun HomeScreen(
             },
             onDelete = { id ->
                 onDeleteCustomContext(id)
-            }
+            },
+            onRequirePro = onRequirePro
         )
     }
 
@@ -1924,6 +1931,7 @@ fun HomeScreen(
         ContextModeEditorSheet(
             initialProfile = proxy,
             isBuiltIn = true,
+            isProUnlocked = state.isProUnlocked,
             installedApps = state.installedApps,
             initialPackages = builtInPkgs,
             iconPackPackage = state.selectedIconPack,
@@ -1948,7 +1956,8 @@ fun HomeScreen(
                         autoOnCharging = edited.autoOnCharging
                     )
                 )
-            }
+            },
+            onRequirePro = onRequirePro
         )
     }
 }

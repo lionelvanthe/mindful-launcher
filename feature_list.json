@@ -52,10 +52,10 @@
     {
       "id": "feat-007",
       "name": "Pro Unlock and v2 Context Triggers",
-      "description": "Implement one-time Pro unlock split and optional Wi-Fi/location context triggers once product decisions in PRODUCT.md are finalized.",
+      "description": "Implement one-time Pro unlock split (stillness_pro_lifetime via Google Play Billing without INTERNET permission) and gate unlimited custom contexts, auto-triggers, advanced mode rules, Icon Packs, and Niagara Dots.",
       "dependencies": ["feat-005", "feat-006"],
-      "status": "not-started",
-      "evidence": ""
+      "status": "done",
+      "evidence": "Implemented ProBillingManager.kt (billing:9.1.0), PreferencesRepository.isProUnlocked/setProUnlocked, LauncherViewModel billing & feature gates, ProUpgradeSheet (HomeDialogs.kt), Settings Pro card (AppDrawerAndSettings.kt), and PRODUCT.md split; verified via init.ps1, lintDebug, and connectedDebugAndroidTest (17/17 passed on emulator-5554 only)."
     },
     {
       "id": "feat-008",

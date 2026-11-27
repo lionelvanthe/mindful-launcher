@@ -1890,13 +1890,15 @@ private val MODE_TIME_PRESETS = listOf(
 fun ContextModeEditorSheet(
     initialProfile: CustomContextProfile?,
     isBuiltIn: Boolean = false,
+    isProUnlocked: Boolean = true,
     installedApps: List<AppInfo> = emptyList(),
     initialPackages: Set<String> = initialProfile?.packages ?: emptySet(),
     iconPackPackage: String? = null,
     onDismiss: () -> Unit,
     onSave: (CustomContextProfile) -> Unit,
     onSavePackages: ((Set<String>) -> Unit)? = null,
-    onDelete: ((String) -> Unit)? = null
+    onDelete: ((String) -> Unit)? = null,
+    onRequirePro: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
@@ -1992,17 +1994,25 @@ fun ContextModeEditorSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Bật tự động", color = colors.primary, style = typography.labelLarge)
+            Text(
+                text = if (isProUnlocked) "Bật tự động" else "Bật tự động (PRO)",
+                color = colors.primary,
+                style = typography.labelLarge
+            )
             Spacer(modifier = Modifier.height(6.dp))
             ModeEditorSwitchRow(
                 title = "Khi kết nối tai nghe / Bluetooth",
                 checked = autoOnHeadphones,
-                onCheckedChange = { autoOnHeadphones = it }
+                onCheckedChange = {
+                    if (isProUnlocked) autoOnHeadphones = it else onRequirePro()
+                }
             )
             ModeEditorSwitchRow(
                 title = "Khi đang cắm sạc",
                 checked = autoOnCharging,
-                onCheckedChange = { autoOnCharging = it }
+                onCheckedChange = {
+                    if (isProUnlocked) autoOnCharging = it else onRequirePro()
+                }
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text("Theo khung giờ", color = colors.onSurfaceVariant, style = typography.bodySmall)
@@ -2019,8 +2029,12 @@ fun ContextModeEditorSheet(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
                             .clickable {
-                                autoStartHour = s
-                                autoEndHour = e
+                                if (isProUnlocked || s == null) {
+                                    autoStartHour = s
+                                    autoEndHour = e
+                                } else {
+                                    onRequirePro()
+                                }
                             }
                     ) {
                         Text(
@@ -2037,9 +2051,11 @@ fun ContextModeEditorSheet(
             Text("Kiểm soát & Chống xao nhãng", color = colors.primary, style = typography.labelLarge)
             Spacer(modifier = Modifier.height(6.dp))
             ModeEditorSwitchRow(
-                title = "Hạn chế ứng dụng ngoài chế độ (dừng 5s)",
+                title = if (isProUnlocked) "Hạn chế ứng dụng ngoài chế độ (dừng 5s)" else "Hạn chế ứng dụng ngoài chế độ (PRO)",
                 checked = restrictOtherApps,
-                onCheckedChange = { restrictOtherApps = it }
+                onCheckedChange = {
+                    if (isProUnlocked) restrictOtherApps = it else onRequirePro()
+                }
             )
             ModeEditorSwitchRow(
                 title = "Ẩn xem trước thông báo",
@@ -2056,14 +2072,18 @@ fun ContextModeEditorSheet(
                 onCheckedChange = { monochromeIcons = it }
             )
             ModeEditorSwitchRow(
-                title = "Nền đen thuần OLED (Ẩn hình nền)",
+                title = if (isProUnlocked) "Nền đen thuần OLED (Ẩn hình nền)" else "Nền đen thuần OLED (PRO)",
                 checked = oledPureBlack,
-                onCheckedChange = { oledPureBlack = it }
+                onCheckedChange = {
+                    if (isProUnlocked) oledPureBlack = it else onRequirePro()
+                }
             )
             ModeEditorSwitchRow(
-                title = "Tắt tiếng Media khi bật chế độ",
+                title = if (isProUnlocked) "Tắt tiếng Media khi bật chế độ" else "Tắt tiếng Media khi bật chế độ (PRO)",
                 checked = muteMediaOnEnter,
-                onCheckedChange = { muteMediaOnEnter = it }
+                onCheckedChange = {
+                    if (isProUnlocked) muteMediaOnEnter = it else onRequirePro()
+                }
             )
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -2128,6 +2148,97 @@ fun ContextModeEditorSheet(
             onDismiss = { showAppPicker = false },
             onSave = { updated -> selectedPackages = updated }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProUpgradeSheet(
+    isProUnlocked: Boolean,
+    formattedPrice: String,
+    statusMessage: String?,
+    onDismiss: () -> Unit,
+    onPurchaseClick: () -> Unit,
+    onRestoreClick: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+        containerColor = colors.surface,
+        contentColor = colors.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 14.dp)
+        ) {
+            Text(
+                text = if (isProUnlocked) "Stillness Pro đã kích hoạt" else "Nâng cấp Stillness Pro",
+                color = colors.onSurface,
+                style = typography.headlineSmall
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Mua đứt 1 lần ($formattedPrice) · Không thuê bao · Giữ nguyên Zero-Telemetry",
+                color = colors.primary,
+                style = typography.labelLarge
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            listOf(
+                "Không giới hạn ngữ cảnh tự tạo (Free: 1 ngữ cảnh)",
+                "Bật tự động theo tai nghe, cắm sạc & khung giờ",
+                "Hạn chế app ngoài chế độ, nền đen OLED & tắt tiếng Media",
+                "Hỗ trợ Icon Pack bên thứ 3 & Niagara Dots"
+            ).forEach { benefit ->
+                Text(
+                    text = "• $benefit",
+                    color = colors.onSurfaceVariant,
+                    style = typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+            if (!statusMessage.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = statusMessage,
+                    color = colors.secondary,
+                    style = typography.bodySmall
+                )
+            }
+            Spacer(modifier = Modifier.height(18.dp))
+            if (!isProUnlocked) {
+                Button(
+                    onClick = onPurchaseClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Mở khóa Pro trọn đời ($formattedPrice)")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onRestoreClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Khôi phục giao dịch Google Play")
+                }
+            } else {
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Đóng")
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
     }
 }
 

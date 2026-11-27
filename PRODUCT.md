@@ -18,7 +18,7 @@ Stillness Launcher replaces the default Android home screen with a calm, text-fi
 - **Zero-Telemetry & No Subscriptions:** Deliberately omits the `INTERNET` permission; core minimalist features are free, with an optional one-time Pro unlock ($2.99–$4.99) and zero recurring subscriptions.
 
 ## Operating Context
-- Native Android app (`minSdk 26` / Android 8.0+, `targetSdk 35`), built with Kotlin and Jetpack Compose.
+- Native Android app (`minSdk 26` / Android 8.0+, `targetSdk 37`), built with Kotlin and Jetpack Compose.
 - Runs 100% locally on-device with `SharedPreferences` persistence.
 - Accessed dozens of times per day in short bursts (checking time, launching an essential app, running quick math/notes in the Command Bar, or pausing before opening social media).
 
@@ -32,7 +32,8 @@ Stillness Launcher replaces the default Android home screen with a calm, text-fi
   - No `INTERNET` permission (Zero-Telemetry commitment).
   - No `AccessibilityService` or background service dependencies that OEM battery savers kill.
   - Bilingual Vietnamese and English support; OLED dark-first display optimization.
-  - Undecided: exact feature split between Free tier and one-time Pro tier ($2.99–$4.99), and whether to add Wi-Fi/location triggers in v2.
+  - Free tier: Core Niagara-style Launcher, Command Bar, 5s Gentle Friction, 3 built-in contexts (`Làm việc`, `Buổi tối`, `Đi ngủ`), 1 custom context, and Zen Focus 25m.
+  - One-time Pro tier (`stillness_pro_lifetime` via Google Play Billing, $2.99–$4.99): Unlimited custom contexts, Auto-Triggers (headphones/charging/time range), Advanced Mode rules (`restrictOtherApps`, `oledPureBlack`, `muteMediaOnEnter`), Icon Packs, and Niagara Dots.
 
 ## Brand Commitments
 - **Name:** Stillness Launcher.

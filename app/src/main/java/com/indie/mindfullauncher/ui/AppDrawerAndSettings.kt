@@ -276,7 +276,8 @@ fun SettingsScreen(
     onExportBackup: () -> String,
     onImportBackup: (String) -> Boolean,
     onUnhideApp: (String) -> Unit,
-    onOpenDefaultLauncher: () -> Unit
+    onOpenDefaultLauncher: () -> Unit,
+    onOpenProUpgrade: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
@@ -352,6 +353,34 @@ fun SettingsScreen(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = colors.onBackground)
             }
             Text("Cài đặt Launcher", color = colors.onBackground, style = typography.titleMedium)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenProUpgrade() },
+            shape = RoundedCornerShape(16.dp),
+            color = if (state.isProUnlocked) colors.primary.copy(alpha = 0.14f) else colors.surface
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = if (state.isProUnlocked) "Stillness Pro đã mở khóa" else "Nâng cấp Stillness Pro (${state.proPrice})",
+                    color = colors.primary,
+                    style = typography.titleSmall
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (state.isProUnlocked) {
+                        "Đã mở khóa toàn bộ ngữ cảnh, Auto-Trigger, Icon Pack & Niagara Dots."
+                    } else {
+                        "Mua đứt 1 lần qua Google Play · Không giới hạn ngữ cảnh, Auto-Trigger, Icon Pack & Dots."
+                    },
+                    color = colors.onSurfaceVariant,
+                    style = typography.bodySmall
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

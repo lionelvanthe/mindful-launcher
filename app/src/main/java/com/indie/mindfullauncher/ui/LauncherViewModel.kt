@@ -1,5 +1,6 @@
 package com.indie.mindfullauncher.ui
 
+import android.app.Activity
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,6 +8,7 @@ import com.indie.mindfullauncher.data.AppRepository
 import com.indie.mindfullauncher.data.IconPackHelper
 import com.indie.mindfullauncher.data.NotificationRepository
 import com.indie.mindfullauncher.data.PreferencesRepository
+import com.indie.mindfullauncher.data.ProBillingManager
 import com.indie.mindfullauncher.domain.CommandBarEngine
 import com.indie.mindfullauncher.domain.CommandResult
 import com.indie.mindfullauncher.model.AccentPreset
@@ -109,7 +111,11 @@ data class LauncherUiState(
     val hasUsagePermission: Boolean = false,
     val isDefaultLauncher: Boolean = false,
     val isSetupBannerDismissed: Boolean = false,
-    val isTipsBannerDismissed: Boolean = false
+    val isTipsBannerDismissed: Boolean = false,
+    val isProUnlocked: Boolean = false,
+    val proPrice: String = "$3.99",
+    val proStatusMessage: String? = null,
+    val showProUpgradeSheet: Boolean = false
 ) {
     val activeCustomContext: CustomContextProfile?
         get() = activeCustomContextId?.let { id -> customContexts.firstOrNull { it.id == id } }
@@ -146,8 +152,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private val appRepo = AppRepository(application)
     private val prefsRepo = PreferencesRepository(application)
+    private val billingManager = ProBillingManager(application, prefsRepo)
 
-    private val _uiState = MutableStateFlow(LauncherUiState())
+    private val _uiState = MutableStateFlow(LauncherUiState(isProUnlocked = prefsRepo.isProUnlocked()))
     val uiState: StateFlow<LauncherUiState> = _uiState.asStateFlow()
 
     private var frictionTimerJob: Job? = null
@@ -156,7 +163,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private var lastFrictionLaunchAtMillis: Long = 0L
 
     init {
+        billingManager.connectAndSync()
         refreshAll()
+        viewModelScope.launch {
+            billingManager.state.collect { billing ->
+                _uiState.update {
+                    it.copy(
+                        isProUnlocked = billing.isProUnlocked,
+                        proPrice = billing.formattedPrice,
+                        proStatusMessage = billing.statusMessage
+                    )
+                }
+            }
+        }
         viewModelScope.launch {
             NotificationRepository.previews.collect { previews ->
                 _uiState.update { it.copy(notificationPreviews = previews) }
@@ -782,6 +801,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setIconShapePreset(preset: IconShapePreset) {
+        if (preset == IconShapePreset.DOTS && !_uiState.value.isProUnlocked) {
+            openProUpgradeSheet()
+            return
+        }
         prefsRepo.setIconShapePreset(preset)
         _uiState.update { it.copy(iconShapePreset = preset) }
     }
@@ -905,8 +928,35 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setSelectedIconPack(packageName: String?) {
+        if (packageName != null && !_uiState.value.isProUnlocked) {
+            openProUpgradeSheet()
+            return
+        }
         prefsRepo.setIconPackPackage(packageName)
         _uiState.update { it.copy(selectedIconPack = packageName) }
+    }
+
+    fun openProUpgradeSheet() {
+        billingManager.clearStatusMessage()
+        _uiState.update { it.copy(showProUpgradeSheet = true) }
+    }
+
+    fun dismissProUpgradeSheet() {
+        billingManager.clearStatusMessage()
+        _uiState.update { it.copy(showProUpgradeSheet = false) }
+    }
+
+    fun launchProPurchase(activity: Activity) {
+        billingManager.launchPurchase(activity)
+    }
+
+    fun restoreProPurchases() {
+        billingManager.restorePurchases()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        billingManager.endConnection()
     }
 
     fun setNiagaraButtonPackage(packageName: String?) {

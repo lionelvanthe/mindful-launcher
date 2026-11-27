@@ -8,7 +8,7 @@ if (Test-Path ".\gradlew.bat") {
     $GradleCmd = "gradle"
 } else {
     $CachedGradle = Get-ChildItem "$env:USERPROFILE\.gradle\wrapper\dists" -Recurse -Filter "gradle.bat" -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -match "gradle-8\.13" } |
+        Where-Object { $_.FullName -match "gradle-9\.3\.1" } |
         Select-Object -First 1 -ExpandProperty FullName
     if ($CachedGradle) {
         $GradleCmd = $CachedGradle

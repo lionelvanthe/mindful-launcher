@@ -544,7 +544,8 @@ class StillnessLauncherUiTest {
             pinnedByProfile = mapOf(ContextProfile.WORK to setOf("com.example.calendar")),
             favoriteOrder = listOf("com.example.calendar"),
             showWallpaperBackground = false,
-            isDefaultLauncher = true
+            isDefaultLauncher = true,
+            isProUnlocked = true
         )
 
         composeRule.setContent {
@@ -659,5 +660,29 @@ class StillnessLauncherUiTest {
 
         composeRule.onNodeWithText("Đặt hẹn giờ 15 phút").assertIsDisplayed().performClick()
         assertTrue(submitted)
+    }
+
+    @Test
+    fun proUpgradeSheet_displaysOneTimePricingAndTriggersPurchaseOrRestore() {
+        var purchased = false
+        var restored = false
+        composeRule.setContent {
+            StillnessTheme {
+                ProUpgradeSheet(
+                    isProUnlocked = false,
+                    formattedPrice = "$3.99",
+                    statusMessage = null,
+                    onDismiss = {},
+                    onPurchaseClick = { purchased = true },
+                    onRestoreClick = { restored = true }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Nâng cấp Stillness Pro").assertIsDisplayed()
+        composeRule.onNodeWithText("Mở khóa Pro trọn đời ($3.99)").performClick()
+        assertTrue(purchased)
+        composeRule.onNodeWithText("Khôi phục giao dịch Google Play").performClick()
+        assertTrue(restored)
     }
 }

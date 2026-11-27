@@ -8,7 +8,7 @@ if [ -x "./gradlew" ]; then
 elif command -v gradle >/dev/null 2>&1; then
   GRADLE_CMD="gradle"
 else
-  CACHED_GRADLE=$(find "${USERPROFILE:-$HOME}/.gradle/wrapper/dists" -name "gradle" -o -name "gradle.bat" 2>/dev/null | grep "gradle-8.13" | head -n 1 || true)
+  CACHED_GRADLE=$(find "${USERPROFILE:-$HOME}/.gradle/wrapper/dists" -name "gradle" -o -name "gradle.bat" 2>/dev/null | grep "gradle-9.3.1" | head -n 1 || true)
   if [ -n "$CACHED_GRADLE" ]; then
     GRADLE_CMD="$CACHED_GRADLE"
   else

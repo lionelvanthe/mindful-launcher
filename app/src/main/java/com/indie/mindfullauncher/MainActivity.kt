@@ -29,6 +29,7 @@ import com.indie.mindfullauncher.ui.AppDrawerScreen
 import com.indie.mindfullauncher.ui.GentleFrictionDialog
 import com.indie.mindfullauncher.ui.HomeScreen
 import com.indie.mindfullauncher.ui.LauncherViewModel
+import com.indie.mindfullauncher.ui.ProUpgradeSheet
 import com.indie.mindfullauncher.ui.SettingsScreen
 import com.indie.mindfullauncher.ui.StillnessTheme
 import com.indie.mindfullauncher.ui.WidgetHostHelper
@@ -154,6 +155,7 @@ class MainActivity : ComponentActivity() {
                         onSaveCustomContext = vm::saveCustomContext,
                         onSaveBuiltInContextConfig = vm::saveBuiltInContextConfig,
                         onDeleteCustomContext = vm::deleteCustomContext,
+                        onRequirePro = vm::openProUpgradeSheet,
                         onSetAppsForActiveContext = vm::setAppsForActiveContext,
                         onStartFocusTimer = vm::startFocusTimer,
                         onStopFocusTimer = vm::stopFocusTimer,
@@ -209,7 +211,19 @@ class MainActivity : ComponentActivity() {
                         onExportBackup = vm::exportBackupJson,
                         onImportBackup = vm::importBackupJson,
                         onUnhideApp = vm::toggleHiddenApp,
-                        onOpenDefaultLauncher = vm::openDefaultLauncherSettings
+                        onOpenDefaultLauncher = vm::openDefaultLauncherSettings,
+                        onOpenProUpgrade = vm::openProUpgradeSheet
+                    )
+                }
+
+                if (state.showProUpgradeSheet) {
+                    ProUpgradeSheet(
+                        isProUnlocked = state.isProUnlocked,
+                        formattedPrice = state.proPrice,
+                        statusMessage = state.proStatusMessage,
+                        onDismiss = vm::dismissProUpgradeSheet,
+                        onPurchaseClick = { vm.launchProPurchase(this@MainActivity) },
+                        onRestoreClick = vm::restoreProPurchases
                     )
                 }
 

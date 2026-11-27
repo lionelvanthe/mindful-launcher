@@ -29,6 +29,12 @@ class PreferencesRepository(context: Context) {
         prefs.edit().putBoolean(KEY_AUTO_CONTEXT, enabled).apply()
     }
 
+    fun isProUnlocked(): Boolean = prefs.getBoolean(KEY_PRO_UNLOCKED, false)
+
+    fun setProUnlocked(unlocked: Boolean) {
+        prefs.edit().putBoolean(KEY_PRO_UNLOCKED, unlocked).apply()
+    }
+
     fun isSetupBannerDismissed(): Boolean = prefs.getBoolean(KEY_SETUP_BANNER_DISMISSED, false)
 
     fun dismissSetupBanner() {
@@ -944,6 +950,7 @@ class PreferencesRepository(context: Context) {
 
     companion object {
         private const val KEY_AUTO_CONTEXT = "auto_context_enabled"
+        private const val KEY_PRO_UNLOCKED = "pro_unlocked"
         private const val KEY_BUILTIN_CONTEXT_CONFIGS = "builtin_context_configs"
         private const val KEY_CUSTOM_CONTEXTS = "custom_context_profiles"
         private const val KEY_AUTO_SLEEP_ON_CHARGE = "auto_sleep_on_charge"

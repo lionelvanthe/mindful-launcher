@@ -2,8 +2,8 @@
 
 ## Current Objective
 
-- Goal: `feat-012` Raycast / Spotlight Command Bar Upgrade.
-- Current status: Completed and verified via `.\init.ps1` (`testDebugUnitTest` + `assembleDebug`), `lintDebug`, and `connectedDebugAndroidTest` (16/16 passed on `emulator-5554` only).
+- Goal: `feat-007` Pro Unlock via Google Play Billing (`stillness_pro_lifetime`).
+- Current status: Completed and verified via `.\init.ps1` (`testDebugUnitTest` + `assembleDebug`), `lintDebug`, and `connectedDebugAndroidTest` (17/17 passed on `emulator-5554` only). All features in `feature_list.json` are `done`.
 - Branch / commit: `master` (working changes ready for commit).
 
 ## Completed This Session
