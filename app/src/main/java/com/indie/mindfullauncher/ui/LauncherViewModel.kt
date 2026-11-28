@@ -645,7 +645,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             "wifi" -> appRepo.openWifiSettings()
             "bluetooth" -> appRepo.openBluetoothSettings()
             "dnd" -> appRepo.openSoundSettings()
-            "timer" -> appRepo.startClockTimer(action.argInt ?: 300)
+            "timer" -> {
+                val secs = action.argInt ?: 300
+                if (!appRepo.startClockTimer(secs)) {
+                    startFocusTimer((secs / 60).coerceAtLeast(1))
+                }
+            }
             "focus" -> startFocusTimer(action.argInt ?: 25)
             "help" -> return
         }
