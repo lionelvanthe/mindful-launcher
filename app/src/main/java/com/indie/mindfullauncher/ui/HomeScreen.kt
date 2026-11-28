@@ -16,14 +16,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -59,13 +62,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.HourglassBottom
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
@@ -74,6 +83,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -243,9 +253,10 @@ fun HomeScreen(
     val calNow = remember(now) { Calendar.getInstance().apply { timeInMillis = now } }
     val hourInt = calNow.get(Calendar.HOUR_OF_DAY)
     val minInt = calNow.get(Calendar.MINUTE)
-    val dayOfWeekStr = remember(now) { SimpleDateFormat("EEEE", Locale("vi", "VN")).format(Date(now)) }
-    val dateStr = remember(now) { SimpleDateFormat("EEEE, dd/MM", Locale("vi", "VN")).format(Date(now)) }
-    val shortDateStr = remember(now) { SimpleDateFormat("dd/MM", Locale("vi", "VN")).format(Date(now)) }
+    val viLocale = remember { Locale.forLanguageTag("vi-VN") }
+    val dayOfWeekStr = remember(now) { SimpleDateFormat("EEEE", viLocale).format(Date(now)) }
+    val dateStr = remember(now) { SimpleDateFormat("EEEE, dd/MM", viLocale).format(Date(now)) }
+    val shortDateStr = remember(now) { SimpleDateFormat("dd/MM", viLocale).format(Date(now)) }
 
     val clipboard = LocalClipboardManager.current
     val colors = MaterialTheme.colorScheme
@@ -303,6 +314,7 @@ fun HomeScreen(
     } else {
         state.activeProfile
     }
+    val activeContextLabel = activeCustom?.name ?: activeFavProfile.displayName
     val favoritePackages = remember(state.pinnedByProfile, activeFavProfile, activeCustom) {
         activeCustom?.packages ?: state.pinnedByProfile[activeFavProfile].orEmpty()
     }
@@ -570,77 +582,113 @@ fun HomeScreen(
         ) {
             // Niagara-style borderless elevated Search Bar (res/NR.xml: 24dp horizontal margin, 6dp elevation, 18sp text, 48dp clear button only when non-empty)
             AnimatedVisibility(visible = isSearchActive) {
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = colors.surfaceVariant,
-                    shadowElevation = 6.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 14.dp)
-                        .height(54.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = colors.surfaceVariant,
+                        shadowElevation = 6.dp,
+                        border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.25f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = if (state.commandQuery.isEmpty()) 10.dp else 14.dp)
+                            .height(54.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(
-                                    start = 24.dp,
-                                    end = if (state.commandQuery.isNotEmpty()) 4.dp else 24.dp
-                                ),
-                            contentAlignment = Alignment.CenterStart
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (state.commandQuery.isEmpty()) {
-                                Text(
-                                    text = "Tìm kiếm ứng dụng",
-                                    color = colors.onSurfaceVariant,
-                                    style = typography.bodyLarge.copy(fontSize = 18.sp),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            BasicTextField(
-                                value = state.commandQuery,
-                                onValueChange = onCommandQueryChanged,
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusRequester(focusRequester),
-                                textStyle = typography.bodyLarge.copy(
-                                    fontSize = 18.sp,
-                                    color = colors.onSurface
-                                ),
-                                singleLine = true,
-                                cursorBrush = SolidColor(colors.secondary),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                keyboardActions = KeyboardActions(onSearch = { onSubmitCommand() })
-                            )
-                        }
-                        if (state.commandQuery.isNotEmpty()) {
-                            IconButton(
-                                onClick = { onCommandQueryChanged("") },
-                                modifier = Modifier.size(48.dp)
+                                    .weight(1f)
+                                    .padding(
+                                        start = 24.dp,
+                                        end = if (state.commandQuery.isNotEmpty()) 4.dp else 24.dp
+                                    ),
+                                contentAlignment = Alignment.CenterStart
                             ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Xóa tìm kiếm",
-                                    tint = colors.onSurfaceVariant
+                                if (state.commandQuery.isEmpty()) {
+                                    Text(
+                                        text = "Tìm kiếm ứng dụng",
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.bodyLarge.copy(fontSize = 18.sp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                BasicTextField(
+                                    value = state.commandQuery,
+                                    onValueChange = onCommandQueryChanged,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(focusRequester),
+                                    textStyle = typography.bodyLarge.copy(
+                                        fontSize = 18.sp,
+                                        color = colors.onSurface
+                                    ),
+                                    singleLine = true,
+                                    cursorBrush = SolidColor(colors.secondary),
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                    keyboardActions = KeyboardActions(onSearch = { onSubmitCommand() })
                                 )
                             }
-                        } else {
-                            IconButton(
-                                onClick = {
-                                    keyboardController?.hide()
-                                    showSearchOptionsSheet = true
-                                },
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.MoreVert,
-                                    contentDescription = "Tùy chọn tìm kiếm",
-                                    tint = colors.onSurfaceVariant
-                                )
+                            if (state.commandQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { onCommandQueryChanged("") },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Xóa tìm kiếm",
+                                        tint = colors.onSurfaceVariant
+                                    )
+                                }
+                            } else {
+                                IconButton(
+                                    onClick = {
+                                        keyboardController?.hide()
+                                        showSearchOptionsSheet = true
+                                    },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.MoreVert,
+                                        contentDescription = "Tùy chọn tìm kiếm",
+                                        tint = colors.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (state.commandQuery.isEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                "! " to "! Ghi chú",
+                                "/focus" to "/focus",
+                                "/timer" to "/timer",
+                                "/coin" to "/coin",
+                                "/help" to "/help"
+                            ).forEach { (cmd, label) ->
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = colors.surface,
+                                    border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.25f)),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .clickable { onCommandQueryChanged(cmd) }
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.labelMedium,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -690,33 +738,81 @@ fun HomeScreen(
 
                     val showOnboarding = !state.isSetupBannerDismissed && !state.isDefaultLauncher
                     val pendingNotesCount = state.notes.count { !it.isDone }
-                    val activeContextLabel = activeCustom?.name ?: activeFavProfile.displayName
 
+                    Spacer(modifier = Modifier.height(6.dp))
                     Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .combinedClickable(
-                                onClick = { showContextSwitcherSheet = true },
-                                onLongClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    if (state.focusSession.isRunning) onStopFocusTimer() else onStartFocusTimer(25)
-                                }
-                            )
-                            .padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = ambientColor.copy(alpha = 0.14f),
+                            border = BorderStroke(1.dp, ambientColor.copy(alpha = 0.35f)),
                             modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(ambientColor)
-                        )
-                        Text(
-                            text = activeContextLabel,
-                            color = colors.onSurfaceVariant,
-                            style = typography.labelMedium.copy(shadow = onWallpaperShadow)
-                        )
+                                .defaultMinSize(minHeight = 36.dp)
+                                .clip(RoundedCornerShape(50))
+                                .combinedClickable(
+                                    onClick = { showContextSwitcherSheet = true },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        if (state.focusSession.isRunning) onStopFocusTimer() else onStartFocusTimer(25)
+                                    }
+                                )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(ambientColor)
+                                )
+                                Text(
+                                    text = activeContextLabel,
+                                    color = colors.onSurface,
+                                    style = typography.labelMedium.copy(shadow = onWallpaperShadow)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = colors.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        if (!state.focusSession.isRunning) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = colors.surface.copy(alpha = 0.78f),
+                                border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.25f)),
+                                modifier = Modifier
+                                    .defaultMinSize(minHeight = 36.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable { onStartFocusTimer(25) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.HourglassBottom,
+                                        contentDescription = null,
+                                        tint = colors.secondary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Tập trung 25p",
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.labelMedium
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     if (state.focusSession.isRunning) {
@@ -982,22 +1078,39 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.TopStart)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable { clipboard.setText(AnnotatedString(res.formattedValue)) },
-                            shape = RoundedCornerShape(16.dp),
-                            color = colors.surface
+                            shape = RoundedCornerShape(20.dp),
+                            color = colors.surface,
+                            border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.22f))
                         ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Text(
-                                    text = "Kết quả (chạm để sao chép)",
-                                    color = colors.onSurfaceVariant,
-                                    style = typography.labelMedium
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "= ${res.formattedValue}",
-                                    color = colors.onSurface,
-                                    style = typography.headlineMedium
-                                )
+                            Row(
+                                modifier = Modifier.padding(18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.secondary.copy(alpha = 0.16f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Calculate, contentDescription = null, tint = colors.secondary, modifier = Modifier.size(20.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Kết quả (chạm để sao chép)",
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.labelMedium
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "= ${res.formattedValue}",
+                                        color = colors.onSurface,
+                                        style = typography.headlineMedium
+                                    )
+                                }
                             }
                         }
                     }
@@ -1006,22 +1119,39 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.TopStart)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable { clipboard.setText(AnnotatedString(res.formattedValue)) },
-                            shape = RoundedCornerShape(16.dp),
-                            color = colors.surface
+                            shape = RoundedCornerShape(20.dp),
+                            color = colors.surface,
+                            border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.22f))
                         ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Text(
-                                    text = "${res.fromExpr} (chạm để sao chép)",
-                                    color = colors.onSurfaceVariant,
-                                    style = typography.labelMedium
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "${res.formattedValue} ${res.unitLabel}",
-                                    color = colors.primary,
-                                    style = typography.headlineMedium
-                                )
+                            Row(
+                                modifier = Modifier.padding(18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.secondary.copy(alpha = 0.16f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = colors.secondary, modifier = Modifier.size(20.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${res.fromExpr} (chạm để sao chép)",
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.labelMedium
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "${res.formattedValue} ${res.unitLabel}",
+                                        color = colors.primary,
+                                        style = typography.headlineMedium
+                                    )
+                                }
                             }
                         }
                     }
@@ -1030,22 +1160,39 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.TopStart)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable { onSubmitCommand() },
-                            shape = RoundedCornerShape(16.dp),
-                            color = colors.surface
+                            shape = RoundedCornerShape(20.dp),
+                            color = colors.surface,
+                            border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.22f))
                         ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Text(
-                                    text = res.title,
-                                    color = colors.primary,
-                                    style = typography.titleMedium
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = res.subtitle,
-                                    color = colors.onSurfaceVariant,
-                                    style = typography.bodySmall
-                                )
+                            Row(
+                                modifier = Modifier.padding(18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.secondary.copy(alpha = 0.16f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = colors.secondary, modifier = Modifier.size(20.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = res.title,
+                                        color = colors.primary,
+                                        style = typography.titleMedium
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = res.subtitle,
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.bodySmall
+                                    )
+                                }
                             }
                         }
                     }
@@ -1054,25 +1201,42 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.TopStart)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onRerollUtility()
                                 },
-                            shape = RoundedCornerShape(16.dp),
-                            color = colors.surface
+                            shape = RoundedCornerShape(20.dp),
+                            color = colors.surface,
+                            border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.22f))
                         ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Text(
-                                    text = "${res.title} (${res.hint})",
-                                    color = colors.onSurfaceVariant,
-                                    style = typography.labelMedium
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = res.value,
-                                    color = colors.secondary,
-                                    style = typography.headlineMedium
-                                )
+                            Row(
+                                modifier = Modifier.padding(18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.secondary.copy(alpha = 0.16f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Casino, contentDescription = null, tint = colors.secondary, modifier = Modifier.size(20.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${res.title} (${res.hint})",
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.labelMedium
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = res.value,
+                                        color = colors.secondary,
+                                        style = typography.headlineMedium
+                                    )
+                                }
                             }
                         }
                     }
@@ -1081,22 +1245,39 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.TopStart)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable { onSubmitCommand() },
-                            shape = RoundedCornerShape(16.dp),
-                            color = colors.surface
+                            shape = RoundedCornerShape(20.dp),
+                            color = colors.surface,
+                            border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.22f))
                         ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Text(
-                                    text = "Nhấn Enter hoặc chạm để lưu ghi chú",
-                                    color = colors.onSurfaceVariant,
-                                    style = typography.labelMedium
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = res.noteText.ifEmpty { "Nhập nội dung sau dấu !" },
-                                    color = colors.onSurface,
-                                    style = typography.titleMedium
-                                )
+                            Row(
+                                modifier = Modifier.padding(18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.secondary.copy(alpha = 0.16f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.EditNote, contentDescription = null, tint = colors.secondary, modifier = Modifier.size(20.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Nhấn Enter hoặc chạm để lưu ghi chú",
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.labelMedium
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = res.noteText.ifEmpty { "Nhập nội dung sau dấu !" },
+                                        color = colors.onSurface,
+                                        style = typography.titleMedium
+                                    )
+                                }
                             }
                         }
                     }
@@ -1366,24 +1547,40 @@ fun HomeScreen(
                                     }
                                 }
                             } else if (favoriteApps.isEmpty() && state.folders.isEmpty()) {
-                                Column(
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = colors.surface.copy(alpha = 0.8f),
+                                    border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.22f)),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(bottom = 12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        .padding(bottom = 12.dp)
                                 ) {
-                                    Text(
-                                        text = "Chưa có ứng dụng yêu thích",
-                                        color = colors.onSurface,
-                                        style = typography.titleMedium
-                                    )
-                                    Text(
-                                        text = "Kéo thanh A–Z bên phải hoặc vuốt lên để tìm kiếm, nhấn giữ ứng dụng để ghim.",
-                                        color = colors.onSurfaceVariant,
-                                        style = typography.bodyMedium
-                                    )
-                                    TextButton(onClick = { isAlphabetMode = true }) {
-                                        Text("Mở danh sách A–Z")
+                                    Column(
+                                        modifier = Modifier.padding(18.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Chưa có ứng dụng yêu thích",
+                                            color = colors.onSurface,
+                                            style = typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "Chọn ứng dụng cho ngữ cảnh \"$activeContextLabel\" hoặc kéo thanh A–Z bên phải.",
+                                            color = colors.onSurfaceVariant,
+                                            style = typography.bodyMedium
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            OutlinedButton(
+                                                onClick = { showContextAppPicker = true },
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Text("Chọn app")
+                                            }
+                                            TextButton(onClick = { isAlphabetMode = true }) {
+                                                Text("Mở danh sách A–Z")
+                                            }
+                                        }
                                     }
                                 }
                             } else {
@@ -2312,8 +2509,9 @@ private fun NiagaraMediaCard(
     val typography = MaterialTheme.typography
 
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         color = colors.surface.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.2f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -2323,7 +2521,7 @@ private fun NiagaraMediaCard(
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .clip(RoundedCornerShape(6.dp)),
+                    .clip(RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 AppIcon(
@@ -2353,17 +2551,17 @@ private fun NiagaraMediaCard(
                     )
                 }
             }
-            IconButton(onClick = onPrevious, modifier = Modifier.size(38.dp)) {
+            IconButton(onClick = onPrevious, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.SkipPrevious, contentDescription = "Trước", tint = colors.onSurfaceVariant)
             }
-            IconButton(onClick = onTogglePlayPause, modifier = Modifier.size(40.dp)) {
+            IconButton(onClick = onTogglePlayPause, modifier = Modifier.size(48.dp)) {
                 Icon(
                     imageVector = if (media.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (media.isPlaying) "Tạm dừng" else "Phát",
                     tint = colors.primary
                 )
             }
-            IconButton(onClick = onNext, modifier = Modifier.size(38.dp)) {
+            IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.SkipNext, contentDescription = "Tiếp", tint = colors.onSurfaceVariant)
             }
         }
@@ -2414,13 +2612,13 @@ private fun HomeStatusPill(
             if (onDismiss != null) {
                 IconButton(
                     onClick = onDismiss,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Ẩn",
                         tint = colors.onSurfaceVariant,
-                        modifier = Modifier.size(12.dp)
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }

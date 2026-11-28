@@ -1,5 +1,6 @@
 package com.indie.mindfullauncher.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -931,7 +933,7 @@ fun CalendarAgendaDialog(
 ) {
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
-    val fmt = remember { SimpleDateFormat("EEE dd/MM · HH:mm", Locale("vi", "VN")) }
+    val fmt = remember { SimpleDateFormat("EEE dd/MM · HH:mm", Locale.forLanguageTag("vi-VN")) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -1114,7 +1116,7 @@ fun QuickNotesDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .defaultMinSize(minHeight = 44.dp),
+                                    .defaultMinSize(minHeight = 48.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(
@@ -1137,7 +1139,7 @@ fun QuickNotesDialog(
                                 )
                                 IconButton(
                                     onClick = { onDeleteNote(note.id) },
-                                    modifier = Modifier.size(40.dp)
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.Close,
@@ -1488,75 +1490,18 @@ fun ContextSwitcherSheet(
                     if (cfg?.monochromeIcons == true) add("Trắng đen")
                     if (cfg?.oledPureBlack == true) add("Nền đen")
                 }.joinToString(" · ")
-                Row(
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSelected) dotColor.copy(alpha = 0.14f) else Color.Transparent,
+                    border = if (isSelected) BorderStroke(1.dp, dotColor.copy(alpha = 0.45f)) else null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = 3.dp)
                 ) {
                     Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable {
-                                onSelectBuiltIn(profile)
-                                onDismiss()
-                            }
-                            .padding(horizontal = 8.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(dotColor)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = profile.displayName,
-                                color = if (isSelected) colors.primary else colors.onSurface,
-                                style = typography.bodyLarge
-                            )
-                            Text(
-                                text = rules,
-                                color = colors.onSurfaceVariant,
-                                style = typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    TextButton(onClick = {
-                        onDismiss()
-                        onEditBuiltInContext(profile)
-                    }) {
-                        Text("Tùy chỉnh", color = colors.secondary)
-                    }
-                }
-            }
-
-            if (customContexts.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                HorizontalDivider(color = colors.surfaceVariant)
-                Spacer(modifier = Modifier.height(6.dp))
-                customContexts.forEach { ctx ->
-                    val isSelected = activeCustomContextId == ctx.id
-                    val rules = buildList {
-                        add("${ctx.packages.size} app")
-                        if (ctx.restrictOtherApps) add("Hạn chế app")
-                        if (ctx.monochromeIcons) add("Trắng đen")
-                        if (ctx.oledPureBlack) add("Nền đen")
-                        if (ctx.autoOnHeadphones) add("Tai nghe")
-                        if (ctx.autoOnCharging) add("Cắm sạc")
-                        if (ctx.autoTimeStartHour != null && ctx.autoTimeEndHour != null) {
-                            add("${ctx.autoTimeStartHour}–${ctx.autoTimeEndHour}h")
-                        }
-                    }.joinToString(" · ")
-                    Row(
-                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
@@ -1564,7 +1509,7 @@ fun ContextSwitcherSheet(
                                 .weight(1f)
                                 .clip(RoundedCornerShape(14.dp))
                                 .clickable {
-                                    onSelectCustom(ctx.id)
+                                    onSelectBuiltIn(profile)
                                     onDismiss()
                                 }
                                 .padding(horizontal = 8.dp, vertical = 10.dp),
@@ -1574,15 +1519,28 @@ fun ContextSwitcherSheet(
                                 modifier = Modifier
                                     .size(10.dp)
                                     .clip(CircleShape)
-                                    .background(Color(ctx.colorHex))
+                                    .background(dotColor)
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = ctx.name,
-                                    color = if (isSelected) colors.primary else colors.onSurface,
-                                    style = typography.bodyLarge
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = profile.displayName,
+                                        color = if (isSelected) dotColor else colors.onSurface,
+                                        style = typography.bodyLarge
+                                    )
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Đang bật",
+                                            tint = dotColor,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
                                 Text(
                                     text = rules,
                                     color = colors.onSurfaceVariant,
@@ -1594,9 +1552,98 @@ fun ContextSwitcherSheet(
                         }
                         TextButton(onClick = {
                             onDismiss()
-                            onEditCustomContext(ctx)
+                            onEditBuiltInContext(profile)
                         }) {
                             Text("Tùy chỉnh", color = colors.secondary)
+                        }
+                    }
+                }
+            }
+
+            if (customContexts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                HorizontalDivider(color = colors.surfaceVariant)
+                Spacer(modifier = Modifier.height(6.dp))
+                customContexts.forEach { ctx ->
+                    val isSelected = activeCustomContextId == ctx.id
+                    val ctxColor = Color(ctx.colorHex)
+                    val rules = buildList {
+                        add("${ctx.packages.size} app")
+                        if (ctx.restrictOtherApps) add("Hạn chế app")
+                        if (ctx.monochromeIcons) add("Trắng đen")
+                        if (ctx.oledPureBlack) add("Nền đen")
+                        if (ctx.autoOnHeadphones) add("Tai nghe")
+                        if (ctx.autoOnCharging) add("Cắm sạc")
+                        if (ctx.autoTimeStartHour != null && ctx.autoTimeEndHour != null) {
+                            add("${ctx.autoTimeStartHour}–${ctx.autoTimeEndHour}h")
+                        }
+                    }.joinToString(" · ")
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isSelected) ctxColor.copy(alpha = 0.14f) else Color.Transparent,
+                        border = if (isSelected) BorderStroke(1.dp, ctxColor.copy(alpha = 0.45f)) else null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        onSelectCustom(ctx.id)
+                                        onDismiss()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(ctxColor)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = ctx.name,
+                                            color = if (isSelected) ctxColor else colors.onSurface,
+                                            style = typography.bodyLarge
+                                        )
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Đang bật",
+                                                tint = ctxColor,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = rules,
+                                        color = colors.onSurfaceVariant,
+                                        style = typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            TextButton(onClick = {
+                                onDismiss()
+                                onEditCustomContext(ctx)
+                            }) {
+                                Text("Tùy chỉnh", color = colors.secondary)
+                            }
                         }
                     }
                 }
@@ -1943,7 +1990,7 @@ fun ContextModeEditorSheet(
                     color = colors.onSurface,
                     style = typography.titleMedium
                 )
-                if (!isBuiltIn && isEditing && initialProfile != null && onDelete != null) {
+                if (!isBuiltIn && initialProfile != null && onDelete != null) {
                     TextButton(onClick = {
                         onDelete(initialProfile.id)
                         onDismiss()
@@ -1976,20 +2023,37 @@ fun ContextModeEditorSheet(
             Spacer(modifier = Modifier.height(14.dp))
             Text("Màu sắc không khí", color = colors.onSurfaceVariant, style = typography.labelMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MODE_COLOR_PRESETS.forEach { hex ->
                     val selected = colorHex == hex
                     Box(
                         modifier = Modifier
-                            .size(30.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
-                            .background(Color(hex))
-                            .then(
-                                if (selected) Modifier.border(2.5.dp, colors.onSurface, CircleShape)
-                                else Modifier
-                            )
-                            .clickable { colorHex = hex }
-                    )
+                            .clickable { colorHex = hex },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color(hex))
+                                .then(
+                                    if (selected) Modifier.border(2.5.dp, colors.onSurface, CircleShape)
+                                    else Modifier
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (selected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Color.Black.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -2196,12 +2260,26 @@ fun ProUpgradeSheet(
                 "Hạn chế app ngoài chế độ, nền đen OLED & tắt tiếng Media",
                 "Hỗ trợ Icon Pack bên thứ 3 & Niagara Dots"
             ).forEach { benefit ->
-                Text(
-                    text = "• $benefit",
-                    color = colors.onSurfaceVariant,
-                    style = typography.bodyMedium,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = colors.secondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = benefit,
+                        color = colors.onSurfaceVariant,
+                        style = typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
             if (!statusMessage.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))

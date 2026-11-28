@@ -4,6 +4,7 @@ import android.Manifest
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,8 +13,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,31 +25,38 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,7 +71,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.indie.mindfullauncher.model.AccentPreset
 import com.indie.mindfullauncher.model.AppInfo
 import com.indie.mindfullauncher.model.ClockStyle
@@ -112,18 +121,30 @@ fun AppDrawerScreen(
             .imePadding()
             .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = colors.onBackground)
             }
-            Text(
-                text = "Tất cả ứng dụng (${filtered.size})",
-                color = colors.onBackground,
-                style = typography.titleMedium
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Tất cả ứng dụng (${filtered.size})",
+                    color = colors.onBackground,
+                    style = typography.titleMedium
+                )
+                Text(
+                    text = "Ghim vào '${editableProfile.displayName}' hoặc bật khoảng dừng 5s",
+                    color = colors.onSurfaceVariant,
+                    style = typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         OutlinedTextField(
             value = search,
@@ -163,13 +184,7 @@ fun AppDrawerScreen(
             )
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Ghim vào ngữ cảnh '${editableProfile.displayName}' hoặc bật khoảng dừng 5s",
-            color = colors.onSurfaceVariant,
-            style = typography.bodySmall
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Box(
             modifier = Modifier
@@ -182,7 +197,7 @@ fun AppDrawerScreen(
                     .fillMaxSize()
                     .padding(end = if (scrubberLetters.isNotEmpty()) 32.dp else 0.dp)
                     .verticalFadingEdge(topFadeHeight = 16.dp, bottomFadeHeight = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 items(filtered, key = { it.packageName }) { app ->
                     val isPinned = app.packageName in pinnedSet
@@ -191,6 +206,7 @@ fun AppDrawerScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .defaultMinSize(minHeight = 56.dp)
                             .pressScale(rowInteraction)
                             .clip(RoundedCornerShape(16.dp))
                             .clickable(
@@ -198,9 +214,18 @@ fun AppDrawerScreen(
                                 indication = LocalIndication.current,
                                 onClick = { onAppClick(app) }
                             )
-                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                            .padding(vertical = 8.dp, horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        AppIcon(
+                            packageName = app.packageName,
+                            contentDescription = app.label,
+                            size = 38.dp,
+                            iconPackPackage = state.selectedIconPack,
+                            monochrome = state.effectiveMonochromeIcons,
+                            iconShape = state.iconShapePreset
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
                         Text(
                             text = app.label,
                             color = colors.onBackground,
@@ -209,18 +234,26 @@ fun AppDrawerScreen(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        IconButton(onClick = { onTogglePin(editableProfile, app.packageName) }) {
+                        IconButton(
+                            onClick = { onTogglePin(editableProfile, app.packageName) },
+                            modifier = Modifier.size(48.dp)
+                        ) {
                             Icon(
                                 Icons.Default.PushPin,
                                 contentDescription = "Ghim",
-                                tint = if (isPinned) colors.primary else colors.outline
+                                tint = if (isPinned) colors.secondary else colors.outline.copy(alpha = 0.7f),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        IconButton(onClick = { onToggleFriction(app.packageName) }) {
+                        IconButton(
+                            onClick = { onToggleFriction(app.packageName) },
+                            modifier = Modifier.size(48.dp)
+                        ) {
                             Icon(
                                 Icons.Default.HourglassBottom,
                                 contentDescription = "Khoảng dừng 5s",
-                                tint = if (isFriction) colors.secondary else colors.outline
+                                tint = if (isFriction) colors.secondary else colors.outline.copy(alpha = 0.7f),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -345,542 +378,582 @@ fun SettingsScreen(
             .background(colors.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
+        // Sticky Top App Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại", tint = colors.onBackground)
             }
-            Text("Cài đặt Launcher", color = colors.onBackground, style = typography.titleMedium)
+            Text(
+                text = "Cài đặt Launcher",
+                color = colors.onBackground,
+                style = typography.titleLarge,
+                modifier = Modifier.padding(start = 4.dp)
+            )
         }
+        HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.6f))
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Surface(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onOpenProUpgrade() },
-            shape = RoundedCornerShape(16.dp),
-            color = if (state.isProUnlocked) colors.primary.copy(alpha = 0.14f) else colors.surface
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = if (state.isProUnlocked) "Stillness Pro đã mở khóa" else "Nâng cấp Stillness Pro (${state.proPrice})",
-                    color = colors.primary,
-                    style = typography.titleSmall
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (state.isProUnlocked) {
-                        "Đã mở khóa toàn bộ ngữ cảnh, Auto-Trigger, Icon Pack & Niagara Dots."
-                    } else {
-                        "Mua đứt 1 lần qua Google Play · Không giới hạn ngữ cảnh, Auto-Trigger, Icon Pack & Dots."
-                    },
-                    color = colors.onSurfaceVariant,
-                    style = typography.bodySmall
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("GIAO DIỆN NIAGARA", color = colors.secondary, style = typography.labelMedium)
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Text("Kiểu đồng hồ", color = colors.onBackground, style = typography.bodyLarge)
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ClockStyle.entries.forEach { style ->
-                FilterChip(
-                    selected = state.clockStyle == style,
-                    onClick = { onSetClockStyle(style) },
-                    shape = RoundedCornerShape(50),
-                    label = { Text(style.displayName, style = typography.labelLarge) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = colors.surface,
-                        labelColor = colors.onSurfaceVariant,
-                        selectedContainerColor = colors.primary,
-                        selectedLabelColor = colors.onPrimary
-                    ),
-                    border = null
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Text("Kích thước icon", color = colors.onBackground, style = typography.bodyLarge)
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            IconSizePreset.entries.forEach { preset ->
-                FilterChip(
-                    selected = state.iconSizePreset == preset,
-                    onClick = { onSetIconSizePreset(preset) },
-                    shape = RoundedCornerShape(50),
-                    label = { Text("${preset.displayName} (${preset.dpValue}dp)", style = typography.labelLarge) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = colors.surface,
-                        labelColor = colors.onSurfaceVariant,
-                        selectedContainerColor = colors.primary,
-                        selectedLabelColor = colors.onPrimary
-                    ),
-                    border = null
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        Text("Kiểu icon (Hình dạng & Niagara Dots)", color = colors.onBackground, style = typography.bodyLarge)
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            IconShapePreset.entries.forEach { shapePreset ->
-                FilterChip(
-                    selected = state.iconShapePreset == shapePreset,
-                    onClick = { onSetIconShapePreset(shapePreset) },
-                    shape = RoundedCornerShape(50),
-                    label = { Text(shapePreset.displayName, style = typography.labelLarge) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = colors.surface,
-                        labelColor = colors.onSurfaceVariant,
-                        selectedContainerColor = colors.primary,
-                        selectedLabelColor = colors.onPrimary
-                    ),
-                    border = null
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        Text("Font chữ", color = colors.onBackground, style = typography.bodyLarge)
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FontPreset.entries.forEach { preset ->
-                FilterChip(
-                    selected = state.fontPreset == preset,
-                    onClick = { onSetFontPreset(preset) },
-                    shape = RoundedCornerShape(50),
-                    label = { Text(preset.displayName, style = typography.labelLarge) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = colors.surface,
-                        labelColor = colors.onSurfaceVariant,
-                        selectedContainerColor = colors.primary,
-                        selectedLabelColor = colors.onPrimary
-                    ),
-                    border = null
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        Text("Màu nhấn", color = colors.onBackground, style = typography.bodyLarge)
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AccentPreset.entries.forEach { accent ->
-                FilterChip(
-                    selected = state.accentPreset == accent,
-                    onClick = { onSetAccentPreset(accent) },
-                    shape = RoundedCornerShape(50),
-                    label = { Text(accent.displayName, style = typography.labelLarge) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = colors.surface,
-                        labelColor = colors.onSurfaceVariant,
-                        selectedContainerColor = Color(accent.colorHex),
-                        selectedLabelColor = colors.onSecondary
-                    ),
-                    border = null
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        SettingsSwitchRow(
-            title = "Bố cục 2 cột trên màn hình lớn",
-            subtitle = "Chia đôi màn hình trên Tablet hoặc màn hình gập (>= 600dp)",
-            checked = state.twoColumnLargeScreen,
-            onCheckedChange = onSetTwoColumnLargeScreen
-        )
-        SettingsSwitchRow(
-            title = "Ẩn thanh trạng thái (Status Bar)",
-            subtitle = "Chế độ toàn màn hình tối giản giống Niagara Launcher",
-            checked = state.hideStatusBar,
-            onCheckedChange = onSetHideStatusBar
-        )
-        SettingsSwitchRow(
-            title = "Ẩn tên app ở Yêu thích",
-            subtitle = "Chỉ hiển thị icon gọn gàng trên màn hình chính",
-            checked = state.hideFavoriteLabels,
-            onCheckedChange = onSetHideFavoriteLabels
-        )
-        SettingsSwitchRow(
-            title = "Hiển thị % Pin",
-            subtitle = "Hiện phần trăm pin cạnh ngày tháng",
-            checked = state.showBatteryOnHome,
-            onCheckedChange = onSetShowBatteryOnHome
-        )
-        SettingsSwitchRow(
-            title = "Hiện thanh cuộn A–Z",
-            subtitle = "Thanh chữ cái nhanh ở cạnh phải màn hình",
-            checked = state.showAlphabetWave,
-            onCheckedChange = onSetShowAlphabetWave
-        )
-        SettingsSwitchRow(
-            title = "Nền hình nền trong suốt",
-            subtitle = "Hiển thị hình nền hệ thống phía sau màn hình chính",
-            checked = state.showWallpaperBackground,
-            onCheckedChange = onSetShowWallpaperBackground
-        )
-        SettingsSwitchRow(
-            title = "Icon đơn sắc tối giản",
-            subtitle = "Chuyển toàn bộ icon ứng dụng sang tông xám dịu mắt",
-            checked = state.monochromeIcons,
-            onCheckedChange = onSetMonochromeIcons
-        )
-
-        if (state.availableIconPacks.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text("Icon Pack đã cài (${state.availableIconPacks.size})", color = colors.onBackground, style = typography.bodyLarge)
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
+            // Pro Upgrade Card
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = state.selectedIconPack == null,
-                    onClick = { onSetSelectedIconPack(null) },
-                    shape = RoundedCornerShape(50),
-                    label = { Text("Mặc định", style = typography.labelLarge) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = colors.surface,
-                        labelColor = colors.onSurfaceVariant,
-                        selectedContainerColor = colors.primary,
-                        selectedLabelColor = colors.onPrimary
-                    ),
-                    border = null
-                )
-                state.availableIconPacks.forEach { pack ->
-                    FilterChip(
-                        selected = state.selectedIconPack == pack.packageName,
-                        onClick = { onSetSelectedIconPack(pack.packageName) },
-                        shape = RoundedCornerShape(50),
-                        label = { Text(pack.label, style = typography.labelLarge) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = colors.surface,
-                            labelColor = colors.onSurfaceVariant,
-                            selectedContainerColor = colors.primary,
-                            selectedLabelColor = colors.onPrimary
-                        ),
-                        border = null
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = colors.surfaceVariant)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("SMART SORT & WIDGET", color = colors.secondary, style = typography.labelMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-        SettingsSwitchRow(
-            title = "Sắp xếp thông minh theo tần suất",
-            subtitle = if (state.hasUsagePermission) "Ưu tiên app dùng nhiều khi duyệt & tìm kiếm" else "Cần quyền Usage Access",
-            checked = state.smartSortEnabled,
-            onCheckedChange = onSetSmartSortEnabled
-        )
-        SettingsSwitchRow(
-            title = "Gợi ý app hay dùng trên Home",
-            subtitle = "Hiện tối đa 3 app mở nhiều nhất gần đây",
-            checked = state.showMostUsedApps,
-            onCheckedChange = onSetShowMostUsedApps
-        )
-        SettingsSwitchRow(
-            title = "Tự chuyển ngữ cảnh theo giờ",
-            subtitle = "Tự động đổi màn hình Làm việc / Buổi tối / Đi ngủ",
-            checked = state.autoContextEnabled,
-            onCheckedChange = onToggleAutoContext
-        )
-        SettingsSwitchRow(
-            title = "Tự bật Đi ngủ khi sạc tối / DND",
-            subtitle = "Chuyển sang chế độ Đi ngủ khi cắm sạc sau 21:00 hoặc bật Không làm phiền",
-            checked = state.autoSleepOnCharge,
-            onCheckedChange = onSetAutoSleepOnCharge
-        )
-        SettingsSwitchRow(
-            title = "Icon đơn sắc ở chế độ Đi ngủ",
-            subtitle = "Giảm kích thích thị giác trước khi ngủ",
-            checked = state.monochromeInSleep,
-            onCheckedChange = onSetMonochromeInSleep
-        )
-        if (!state.hasUsagePermission) {
-            Button(
-                onClick = onOpenUsageSettings,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.surfaceVariant,
-                    contentColor = colors.onBackground
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { onOpenProUpgrade() },
+                shape = RoundedCornerShape(20.dp),
+                color = if (state.isProUnlocked) colors.secondary.copy(alpha = 0.14f) else colors.surface,
+                border = BorderStroke(
+                    1.dp,
+                    if (state.isProUnlocked) colors.secondary.copy(alpha = 0.45f) else colors.outline.copy(alpha = 0.25f)
                 )
             ) {
-                Text("Cấp quyền Usage Access")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = onPickWidget,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.surfaceVariant,
-                    contentColor = colors.onBackground
-                )
-            ) {
-                Text(
-                    if (state.pinnedWidgetIds.isNotEmpty()) {
-                        "Thêm Widget (${state.pinnedWidgetIds.size})"
-                    } else {
-                        "Gắn Widget lên Home"
-                    }
-                )
-            }
-            if (state.pinnedWidgetIds.isNotEmpty()) {
-                Button(
-                    onClick = onClearWidget,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colors.surfaceVariant,
-                        contentColor = colors.onBackground
-                    )
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text("Gỡ tất cả Widget")
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(colors.secondary.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = colors.secondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (state.isProUnlocked) "Stillness Pro đã mở khóa" else "Nâng cấp Stillness Pro (${state.proPrice})",
+                            color = colors.onSurface,
+                            style = typography.titleSmall
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = if (state.isProUnlocked) {
+                                "Đã mở khóa toàn bộ ngữ cảnh, Auto-Trigger, Icon Pack & Niagara Dots."
+                            } else {
+                                "Mua đứt 1 lần qua Google Play · Không giới hạn ngữ cảnh, Auto-Trigger, Icon Pack & Dots."
+                            },
+                            color = colors.onSurfaceVariant,
+                            style = typography.bodySmall
+                        )
+                    }
                 }
             }
-        }
-        Spacer(modifier = Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = { showFabDialog = true },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.surfaceVariant,
-                    contentColor = colors.onBackground
-                )
-            ) {
-                Text("Tùy chỉnh nút Niagara")
-            }
-            Button(
-                onClick = { showTipsDialog = true },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.surfaceVariant,
-                    contentColor = colors.onBackground
-                )
-            ) {
-                Text("Hướng dẫn & Mẹo")
-            }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = colors.surfaceVariant)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("AT-A-GLANCE, NHẠC & THÔNG BÁO", color = colors.secondary, style = typography.labelMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-        SettingsSwitchRow(
-            title = "Trình phát nhạc At-a-Glance",
-            subtitle = "Điều khiển nhạc đang phát ngay trên màn hình chính",
-            checked = state.showMediaPlayer,
-            onCheckedChange = onSetShowMediaPlayer
-        )
-        SettingsSwitchRow(
-            title = "Gợi ý app nhạc khi kết nối tai nghe",
-            subtitle = "Tự động hiện app nghe nhạc khi cắm tai nghe / Bluetooth",
-            checked = state.showMusicOnHeadphones,
-            onCheckedChange = onSetShowMusicOnHeadphones
-        )
-        SettingsSwitchRow(
-            title = "Tìm kiếm Danh bạ",
-            subtitle = if (state.hasContactsPermission) "Đã cấp quyền Danh bạ" else "Chưa cấp quyền đọc Danh bạ",
-            checked = state.showContactSearch,
-            onCheckedChange = { enabled ->
-                onSetShowContactSearch(enabled)
-                if (enabled && !state.hasContactsPermission) {
-                    contactsPermLauncher.launch(Manifest.permission.READ_CONTACTS)
-                }
-            }
-        )
-        if (!state.hasContactsPermission) {
-            Button(
-                onClick = { contactsPermLauncher.launch(Manifest.permission.READ_CONTACTS) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.surfaceVariant,
-                    contentColor = colors.onBackground
-                )
-            ) {
-                Text("Cấp quyền đọc Danh bạ")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-        SettingsSwitchRow(
-            title = "Hiển thị sự kiện Lịch sắp tới",
-            subtitle = if (state.hasCalendarPermission) "Đã cấp quyền Lịch" else "Chưa cấp quyền đọc Lịch",
-            checked = state.showCalendarEvents,
-            onCheckedChange = { enabled ->
-                onSetShowCalendarEvents(enabled)
-                if (enabled && !state.hasCalendarPermission) {
-                    calendarPermLauncher.launch(Manifest.permission.READ_CALENDAR)
-                }
-            }
-        )
-        if (!state.hasCalendarPermission) {
-            Button(
-                onClick = { calendarPermLauncher.launch(Manifest.permission.READ_CALENDAR) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.surfaceVariant,
-                    contentColor = colors.onBackground
-                )
-            ) {
-                Text("Cấp quyền đọc Lịch")
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        SettingsSwitchRow(
-            title = "Xem trước thông báo trên Yêu thích",
-            subtitle = if (state.hasNotificationPermission) "Đã bật quyền Thông báo" else "Chưa bật quyền đọc Thông báo",
-            checked = state.showNotificationPreviews,
-            onCheckedChange = onSetShowNotificationPreviews
-        )
-        if (!state.hasNotificationPermission) {
-            Button(
-                onClick = onOpenNotificationSettings,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.surfaceVariant,
-                    contentColor = colors.onBackground
-                )
-            ) {
-                Text("Bật quyền đọc Thông báo")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = colors.surfaceVariant)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("SAO LƯU & KHÔI PHỤC", color = colors.secondary, style = typography.labelMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = { exportLauncher.launch("stillness_niagara_backup.json") },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.surfaceVariant,
-                    contentColor = colors.onBackground
-                )
-            ) {
-                Text("Sao lưu JSON")
-            }
-            Button(
-                onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.surfaceVariant,
-                    contentColor = colors.onBackground
-                )
-            ) {
-                Text("Khôi phục")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = colors.surfaceVariant)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("ỨNG DỤNG ĐÃ ẨN (${hiddenApps.size})", color = colors.secondary, style = typography.labelMedium)
-        Spacer(modifier = Modifier.height(6.dp))
-        if (hiddenApps.isEmpty()) {
-            Text(
-                text = "Chưa có ứng dụng nào bị ẩn. Nhấn giữ ứng dụng bất kỳ để ẩn khỏi danh sách A–Z.",
-                color = colors.onSurfaceVariant,
-                style = typography.bodySmall
-            )
-        } else {
-            hiddenApps.forEach { app ->
+            // Section 1: Giao diện & Đồng hồ
+            SettingsSectionCard(title = "GIAO DIỆN NIAGARA") {
+                SettingsChipGroupLabel("Kiểu đồng hồ")
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(app.label, color = colors.onBackground, style = typography.bodyLarge)
-                    Button(
-                        onClick = { onUnhideApp(app.packageName) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = colors.surfaceVariant,
-                            contentColor = colors.onBackground
+                    ClockStyle.entries.forEach { style ->
+                        FilterChip(
+                            selected = state.clockStyle == style,
+                            onClick = { onSetClockStyle(style) },
+                            shape = RoundedCornerShape(50),
+                            label = { Text(style.displayName, style = typography.labelLarge) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = colors.surfaceVariant.copy(alpha = 0.6f),
+                                labelColor = colors.onSurfaceVariant,
+                                selectedContainerColor = colors.primary,
+                                selectedLabelColor = colors.onPrimary
+                            ),
+                            border = null
                         )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                SettingsChipGroupLabel("Màu nhấn")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AccentPreset.entries.forEach { accent ->
+                        val swatchColor = Color(accent.colorHex)
+                        FilterChip(
+                            selected = state.accentPreset == accent,
+                            onClick = { onSetAccentPreset(accent) },
+                            shape = RoundedCornerShape(50),
+                            leadingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (state.accentPreset == accent) colors.onSecondary else swatchColor
+                                        )
+                                )
+                            },
+                            label = { Text(accent.displayName, style = typography.labelLarge) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = colors.surfaceVariant.copy(alpha = 0.6f),
+                                labelColor = colors.onSurfaceVariant,
+                                selectedContainerColor = swatchColor,
+                                selectedLabelColor = colors.onSecondary
+                            ),
+                            border = null
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                SettingsChipGroupLabel("Kích thước icon")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    IconSizePreset.entries.forEach { preset ->
+                        FilterChip(
+                            selected = state.iconSizePreset == preset,
+                            onClick = { onSetIconSizePreset(preset) },
+                            shape = RoundedCornerShape(50),
+                            label = { Text("${preset.displayName} (${preset.dpValue}dp)", style = typography.labelLarge) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = colors.surfaceVariant.copy(alpha = 0.6f),
+                                labelColor = colors.onSurfaceVariant,
+                                selectedContainerColor = colors.primary,
+                                selectedLabelColor = colors.onPrimary
+                            ),
+                            border = null
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                SettingsChipGroupLabel("Kiểu icon (Hình dạng & Niagara Dots)")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    IconShapePreset.entries.forEach { shapePreset ->
+                        FilterChip(
+                            selected = state.iconShapePreset == shapePreset,
+                            onClick = { onSetIconShapePreset(shapePreset) },
+                            shape = RoundedCornerShape(50),
+                            label = { Text(shapePreset.displayName, style = typography.labelLarge) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = colors.surfaceVariant.copy(alpha = 0.6f),
+                                labelColor = colors.onSurfaceVariant,
+                                selectedContainerColor = colors.primary,
+                                selectedLabelColor = colors.onPrimary
+                            ),
+                            border = null
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                SettingsChipGroupLabel("Font chữ")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FontPreset.entries.forEach { preset ->
+                        FilterChip(
+                            selected = state.fontPreset == preset,
+                            onClick = { onSetFontPreset(preset) },
+                            shape = RoundedCornerShape(50),
+                            label = { Text(preset.displayName, style = typography.labelLarge) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = colors.surfaceVariant.copy(alpha = 0.6f),
+                                labelColor = colors.onSurfaceVariant,
+                                selectedContainerColor = colors.primary,
+                                selectedLabelColor = colors.onPrimary
+                            ),
+                            border = null
+                        )
+                    }
+                }
+
+                if (state.availableIconPacks.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SettingsChipGroupLabel("Icon Pack đã cài (${state.availableIconPacks.size})")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Hiện lại")
+                        FilterChip(
+                            selected = state.selectedIconPack == null,
+                            onClick = { onSetSelectedIconPack(null) },
+                            shape = RoundedCornerShape(50),
+                            label = { Text("Mặc định", style = typography.labelLarge) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = colors.surfaceVariant.copy(alpha = 0.6f),
+                                labelColor = colors.onSurfaceVariant,
+                                selectedContainerColor = colors.primary,
+                                selectedLabelColor = colors.onPrimary
+                            ),
+                            border = null
+                        )
+                        state.availableIconPacks.forEach { pack ->
+                            FilterChip(
+                                selected = state.selectedIconPack == pack.packageName,
+                                onClick = { onSetSelectedIconPack(pack.packageName) },
+                                shape = RoundedCornerShape(50),
+                                label = { Text(pack.label, style = typography.labelLarge) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = colors.surfaceVariant.copy(alpha = 0.6f),
+                                    labelColor = colors.onSurfaceVariant,
+                                    selectedContainerColor = colors.primary,
+                                    selectedLabelColor = colors.onPrimary
+                                ),
+                                border = null
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider(color = colors.surfaceVariant.copy(alpha = 0.6f))
+                SettingsSwitchRow(
+                    title = "Bố cục 2 cột trên màn hình lớn",
+                    subtitle = "Chia đôi màn hình trên Tablet hoặc màn hình gập (>= 600dp)",
+                    checked = state.twoColumnLargeScreen,
+                    onCheckedChange = onSetTwoColumnLargeScreen
+                )
+                SettingsSwitchRow(
+                    title = "Ẩn thanh trạng thái (Status Bar)",
+                    subtitle = "Chế độ toàn màn hình tối giản giống Niagara Launcher",
+                    checked = state.hideStatusBar,
+                    onCheckedChange = onSetHideStatusBar
+                )
+                SettingsSwitchRow(
+                    title = "Ẩn tên app ở Yêu thích",
+                    subtitle = "Chỉ hiển thị icon gọn gàng trên màn hình chính",
+                    checked = state.hideFavoriteLabels,
+                    onCheckedChange = onSetHideFavoriteLabels
+                )
+                SettingsSwitchRow(
+                    title = "Hiển thị % Pin",
+                    subtitle = "Hiện phần trăm pin cạnh ngày tháng",
+                    checked = state.showBatteryOnHome,
+                    onCheckedChange = onSetShowBatteryOnHome
+                )
+                SettingsSwitchRow(
+                    title = "Hiện thanh cuộn A–Z",
+                    subtitle = "Thanh chữ cái nhanh ở cạnh phải màn hình",
+                    checked = state.showAlphabetWave,
+                    onCheckedChange = onSetShowAlphabetWave
+                )
+                SettingsSwitchRow(
+                    title = "Nền hình nền trong suốt",
+                    subtitle = "Hiển thị hình nền hệ thống phía sau màn hình chính",
+                    checked = state.showWallpaperBackground,
+                    onCheckedChange = onSetShowWallpaperBackground
+                )
+                SettingsSwitchRow(
+                    title = "Icon đơn sắc tối giản",
+                    subtitle = "Chuyển toàn bộ icon ứng dụng sang tông xám dịu mắt",
+                    checked = state.monochromeIcons,
+                    onCheckedChange = onSetMonochromeIcons
+                )
+            }
+
+            // Section 2: Ngữ cảnh & Thói quen số
+            SettingsSectionCard(title = "SMART SORT & NGỮ CẢNH") {
+                SettingsSwitchRow(
+                    title = "Sắp xếp thông minh theo tần suất",
+                    subtitle = if (state.hasUsagePermission) "Ưu tiên app dùng nhiều khi duyệt & tìm kiếm" else "Cần quyền Usage Access",
+                    checked = state.smartSortEnabled,
+                    onCheckedChange = onSetSmartSortEnabled
+                )
+                SettingsSwitchRow(
+                    title = "Gợi ý app hay dùng trên Home",
+                    subtitle = "Hiện tối đa 3 app mở nhiều nhất gần đây",
+                    checked = state.showMostUsedApps,
+                    onCheckedChange = onSetShowMostUsedApps
+                )
+                SettingsSwitchRow(
+                    title = "Tự chuyển ngữ cảnh theo giờ",
+                    subtitle = "Tự động đổi màn hình Làm việc / Buổi tối / Đi ngủ",
+                    checked = state.autoContextEnabled,
+                    onCheckedChange = onToggleAutoContext
+                )
+                SettingsSwitchRow(
+                    title = "Tự bật Đi ngủ khi sạc tối / DND",
+                    subtitle = "Chuyển sang chế độ Đi ngủ khi cắm sạc sau 21:00 hoặc bật Không làm phiền",
+                    checked = state.autoSleepOnCharge,
+                    onCheckedChange = onSetAutoSleepOnCharge
+                )
+                SettingsSwitchRow(
+                    title = "Icon đơn sắc ở chế độ Đi ngủ",
+                    subtitle = "Giảm kích thích thị giác trước khi ngủ",
+                    checked = state.monochromeInSleep,
+                    onCheckedChange = onSetMonochromeInSleep
+                )
+                if (!state.hasUsagePermission) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SettingsPermissionRow(
+                        title = "Quyền Usage Access",
+                        subtitle = "Hiển thị phút sử dụng trong khoảng dừng 5s & Smart Sort",
+                        isGranted = false,
+                        grantLabel = "Cấp quyền",
+                        onGrant = onOpenUsageSettings
+                    )
+                }
+            }
+
+            // Section 3: At-a-Glance, Nhạc & Thông báo
+            SettingsSectionCard(title = "AT-A-GLANCE, NHẠC & THÔNG BÁO") {
+                SettingsSwitchRow(
+                    title = "Trình phát nhạc At-a-Glance",
+                    subtitle = "Điều khiển nhạc đang phát ngay trên màn hình chính",
+                    checked = state.showMediaPlayer,
+                    onCheckedChange = onSetShowMediaPlayer
+                )
+                SettingsSwitchRow(
+                    title = "Gợi ý app nhạc khi kết nối tai nghe",
+                    subtitle = "Tự động hiện app nghe nhạc khi cắm tai nghe / Bluetooth",
+                    checked = state.showMusicOnHeadphones,
+                    onCheckedChange = onSetShowMusicOnHeadphones
+                )
+                SettingsSwitchRow(
+                    title = "Tìm kiếm Danh bạ",
+                    subtitle = if (state.hasContactsPermission) "Đã cấp quyền Danh bạ" else "Chưa cấp quyền đọc Danh bạ",
+                    checked = state.showContactSearch,
+                    onCheckedChange = { enabled ->
+                        onSetShowContactSearch(enabled)
+                        if (enabled && !state.hasContactsPermission) {
+                            contactsPermLauncher.launch(Manifest.permission.READ_CONTACTS)
+                        }
+                    }
+                )
+                if (!state.hasContactsPermission) {
+                    SettingsPermissionRow(
+                        title = "Quyền đọc Danh bạ",
+                        subtitle = "Cho phép gọi nhanh từ thanh tìm kiếm",
+                        isGranted = false,
+                        grantLabel = "Cấp quyền",
+                        onGrant = { contactsPermLauncher.launch(Manifest.permission.READ_CONTACTS) }
+                    )
+                }
+                SettingsSwitchRow(
+                    title = "Hiển thị sự kiện Lịch sắp tới",
+                    subtitle = if (state.hasCalendarPermission) "Đã cấp quyền Lịch" else "Chưa cấp quyền đọc Lịch",
+                    checked = state.showCalendarEvents,
+                    onCheckedChange = { enabled ->
+                        onSetShowCalendarEvents(enabled)
+                        if (enabled && !state.hasCalendarPermission) {
+                            calendarPermLauncher.launch(Manifest.permission.READ_CALENDAR)
+                        }
+                    }
+                )
+                if (!state.hasCalendarPermission) {
+                    SettingsPermissionRow(
+                        title = "Quyền đọc Lịch",
+                        subtitle = "Hiện sự kiện tiếp theo dưới đồng hồ",
+                        isGranted = false,
+                        grantLabel = "Cấp quyền",
+                        onGrant = { calendarPermLauncher.launch(Manifest.permission.READ_CALENDAR) }
+                    )
+                }
+                SettingsSwitchRow(
+                    title = "Xem trước thông báo trên Yêu thích",
+                    subtitle = if (state.hasNotificationPermission) "Đã bật quyền Thông báo" else "Chưa bật quyền đọc Thông báo",
+                    checked = state.showNotificationPreviews,
+                    onCheckedChange = onSetShowNotificationPreviews
+                )
+                if (!state.hasNotificationPermission) {
+                    SettingsPermissionRow(
+                        title = "Quyền đọc Thông báo",
+                        subtitle = "Hiển thị tin nhắn gọn ngay dưới app yêu thích",
+                        isGranted = false,
+                        grantLabel = "Bật quyền",
+                        onGrant = onOpenNotificationSettings
+                    )
+                }
+            }
+
+            // Section 4: Widget, Nút Niagara & Sao lưu
+            SettingsSectionCard(title = "TIỆN ÍCH & SAO LƯU") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onPickWidget,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(
+                            if (state.pinnedWidgetIds.isNotEmpty()) {
+                                "Thêm Widget (${state.pinnedWidgetIds.size})"
+                            } else {
+                                "Gắn Widget"
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (state.pinnedWidgetIds.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = onClearWidget,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("Gỡ hết")
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { showFabDialog = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Nút Niagara", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    OutlinedButton(
+                        onClick = { showTipsDialog = true },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Hướng dẫn & Mẹo", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { exportLauncher.launch("stillness_niagara_backup.json") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Sao lưu JSON", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    OutlinedButton(
+                        onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Khôi phục", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = colors.surfaceVariant)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = colors.surface,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Zero-Telemetry", color = Color(0xFF81C784), style = typography.labelMedium)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "Ứng dụng không xin quyền Internet. Mọi ghi chú và cấu hình chỉ nằm trên điện thoại của bạn.",
-                    color = colors.onSurfaceVariant,
-                    style = typography.bodySmall
-                )
+            // Section 5: Ứng dụng đã ẩn
+            SettingsSectionCard(title = "ỨNG DỤNG ĐÃ ẨN (${hiddenApps.size})") {
+                if (hiddenApps.isEmpty()) {
+                    Text(
+                        text = "Chưa có ứng dụng nào bị ẩn. Nhấn giữ ứng dụng bất kỳ để ẩn khỏi danh sách A–Z.",
+                        color = colors.onSurfaceVariant,
+                        style = typography.bodySmall
+                    )
+                } else {
+                    hiddenApps.forEach { app ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = app.label,
+                                color = colors.onBackground,
+                                style = typography.bodyLarge,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            TextButton(onClick = { onUnhideApp(app.packageName) }) {
+                                Text("Hiện lại", color = colors.secondary)
+                            }
+                        }
+                    }
+                }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            // Section 6: Zero-Telemetry & Default Launcher
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = colors.surface,
+                border = BorderStroke(1.dp, Color(0xFF81C784).copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF81C784).copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = Color(0xFF81C784),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Zero-Telemetry", color = Color(0xFF81C784), style = typography.labelLarge)
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            "Ứng dụng không xin quyền Internet. Mọi ghi chú và cấu hình chỉ nằm trên điện thoại của bạn.",
+                            color = colors.onSurfaceVariant,
+                            style = typography.bodySmall
+                        )
+                    }
+                }
+            }
 
-        Text("Đặt làm màn hình chính mặc định", color = colors.onBackground, style = typography.bodyLarge)
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = onOpenDefaultLauncher,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colors.surfaceVariant,
-                contentColor = colors.onBackground
-            )
-        ) {
-            Text("Mở cài đặt Launcher mặc định")
+            Button(
+                onClick = onOpenDefaultLauncher,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.surfaceVariant,
+                    contentColor = colors.onBackground
+                )
+            ) {
+                Text("Mở cài đặt Launcher mặc định", fontWeight = FontWeight.Medium)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
         }
-        Spacer(modifier = Modifier.height(24.dp))
     }
 
     if (showFabDialog) {
@@ -901,6 +974,93 @@ fun SettingsScreen(
 }
 
 @Composable
+private fun SettingsSectionCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = colors.surface,
+        border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.18f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = title,
+                color = colors.secondary,
+                style = typography.labelMedium
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsChipGroupLabel(text: String) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    Text(text, color = colors.onBackground, style = typography.bodyLarge)
+    Spacer(modifier = Modifier.height(6.dp))
+}
+
+@Composable
+private fun SettingsPermissionRow(
+    title: String,
+    subtitle: String,
+    isGranted: Boolean,
+    grantLabel: String,
+    onGrant: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = colors.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(enabled = !isGranted, onClick = onGrant)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = colors.onSurface, style = typography.labelLarge)
+                Text(subtitle, color = colors.onSurfaceVariant, style = typography.bodySmall)
+            }
+            if (isGranted) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Đã cấp",
+                    tint = Color(0xFF81C784),
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = colors.secondary.copy(alpha = 0.2f)
+                ) {
+                    Text(
+                        text = grantLabel,
+                        color = colors.secondary,
+                        style = typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SettingsSwitchRow(
     title: String,
     subtitle: String,
@@ -913,11 +1073,19 @@ private fun SettingsSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .defaultMinSize(minHeight = 56.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onCheckedChange(!checked) }
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 12.dp)
+        ) {
             Text(title, color = colors.onBackground, style = typography.bodyLarge)
+            Spacer(modifier = Modifier.height(2.dp))
             Text(subtitle, color = colors.onSurfaceVariant, style = typography.bodySmall)
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)

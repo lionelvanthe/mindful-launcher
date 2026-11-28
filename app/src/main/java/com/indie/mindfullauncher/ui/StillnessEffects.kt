@@ -1,5 +1,6 @@
 package com.indie.mindfullauncher.ui
 
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -53,6 +54,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -64,14 +66,30 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
+@Composable
+fun rememberReducedMotion(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+        runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            ) == 0f
+        }.getOrDefault(false)
+    }
+}
+
 /**
  * Applies Niagara-inspired tactile press scale feedback (quick scale-down on press,
- * subtle spring overshoot on release).
+ * subtle spring overshoot on release), respecting system reduced-motion settings.
  */
 fun Modifier.pressScale(
     interactionSource: MutableInteractionSource,
     pressedScale: Float = 0.96f
 ): Modifier = composed {
+    val reducedMotion = rememberReducedMotion()
+    if (reducedMotion) return@composed this
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) pressedScale else 1f,
