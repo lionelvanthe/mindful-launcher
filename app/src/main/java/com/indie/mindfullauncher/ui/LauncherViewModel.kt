@@ -2,6 +2,11 @@ package com.indie.mindfullauncher.ui
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
+import android.content.pm.LauncherApps
+import android.os.Handler
+import android.os.Looper
+import android.os.UserHandle
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.indie.mindfullauncher.data.AppRepository
@@ -161,8 +166,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private var focusTimerJob: Job? = null
     private var lastFrictionLaunchPkg: String? = null
     private var lastFrictionLaunchAtMillis: Long = 0L
+    private val launcherApps: LauncherApps? =
+        application.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? LauncherApps
+    private val packageCallback = object : LauncherApps.Callback() {
+        override fun onPackageRemoved(packageName: String, user: UserHandle) = reloadInstalledApps()
+        override fun onPackageAdded(packageName: String, user: UserHandle) = reloadInstalledApps()
+        override fun onPackageChanged(packageName: String, user: UserHandle) = reloadInstalledApps()
+        override fun onPackagesAvailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
+            reloadInstalledApps()
+        override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
+            reloadInstalledApps()
+    }
 
     init {
+        launcherApps?.registerCallback(packageCallback, Handler(Looper.getMainLooper()))
         billingManager.connectAndSync()
         refreshAll()
         viewModelScope.launch {
@@ -730,6 +747,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onLauncherResumed() {
+        reloadInstalledApps()
         refreshTimeContextIfAuto()
         val pkg = lastFrictionLaunchPkg ?: return
         val launchedAt = lastFrictionLaunchAtMillis
@@ -956,6 +974,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     override fun onCleared() {
         super.onCleared()
+        launcherApps?.unregisterCallback(packageCallback)
         billingManager.endConnection()
     }
 
@@ -1075,6 +1094,41 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun openAppInfo(packageName: String) = appRepo.openAppInfo(packageName)
 
     fun uninstallApp(packageName: String) = appRepo.uninstallApp(packageName)
+
+    fun reloadInstalledApps() {
+        viewModelScope.launch {
+            val rawApps = withContext(Dispatchers.IO) { appRepo.loadInstalledApps() }
+            val customNames = prefsRepo.getCustomAppNames()
+            val apps = rawApps.map { app ->
+                val custom = customNames[app.packageName]
+                if (custom != null) app.copy(label = custom) else app
+            }.sortedBy { it.label.lowercase() }
+            val installedSet = apps.map { it.packageName }.toSet()
+            val pinnedMap = ContextProfile.entries
+                .filter { it != ContextProfile.ALL }
+                .associateWith { prefsRepo.getPinnedPackages(it, apps) }
+            _uiState.update { state ->
+                val favProfile = if (state.activeProfile == ContextProfile.ALL) ContextProfile.WORK else state.activeProfile
+                val cleanedOrder = state.favoriteOrder.filter { it in installedSet }
+                val updatedOrder = if (cleanedOrder.isNotEmpty() || state.favoriteOrder.isEmpty()) {
+                    prefsRepo.getFavoriteOrder(favProfile, pinnedMap[favProfile].orEmpty())
+                } else {
+                    cleanedOrder
+                }
+                val updatedResult = if (state.commandQuery.isNotBlank()) {
+                    CommandBarEngine.evaluate(state.commandQuery, apps)
+                } else {
+                    state.commandResult
+                }
+                state.copy(
+                    installedApps = apps,
+                    pinnedByProfile = pinnedMap,
+                    favoriteOrder = updatedOrder,
+                    commandResult = updatedResult
+                )
+            }
+        }
+    }
 
     private fun clearCommandIfActive() {
         if (_uiState.value.commandQuery.isNotEmpty()) {

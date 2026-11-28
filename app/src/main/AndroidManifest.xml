@@ -21,6 +21,9 @@
     <!-- Normal permission for swipe-down to expand notification shade (Niagara gesture) -->
     <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
 
+    <!-- Required on Android 9+ to launch system package uninstaller via ACTION_DELETE -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
     <application
         android:allowBackup="false"
         android:label="@string/app_name"

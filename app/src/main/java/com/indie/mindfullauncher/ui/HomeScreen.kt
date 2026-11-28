@@ -423,6 +423,15 @@ fun HomeScreen(
         isSearchExpanded = false
         keyboardController?.hide()
     }
+    val submitCommandAndCloseIfNeeded = {
+        val shouldClose = when (val result = state.commandResult) {
+            is CommandResult.NoteAction -> result.noteText.isNotBlank()
+            is CommandResult.SystemActionResult -> result.actionId != "help"
+            else -> false
+        }
+        onSubmitCommand()
+        if (shouldClose) closeSearch()
+    }
 
     BackHandler(enabled = isAlphabetMode || isSearchActive) {
         when {
@@ -628,7 +637,7 @@ fun HomeScreen(
                                     singleLine = true,
                                     cursorBrush = SolidColor(colors.secondary),
                                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                    keyboardActions = KeyboardActions(onSearch = { onSubmitCommand() })
+                                    keyboardActions = KeyboardActions(onSearch = { submitCommandAndCloseIfNeeded() })
                                 )
                             }
                             if (state.commandQuery.isNotEmpty()) {
@@ -1161,7 +1170,7 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .align(Alignment.TopStart)
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { onSubmitCommand() },
+                                .clickable { submitCommandAndCloseIfNeeded() },
                             shape = RoundedCornerShape(20.dp),
                             color = colors.surface,
                             border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.22f))
@@ -1246,7 +1255,7 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .align(Alignment.TopStart)
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { onSubmitCommand() },
+                                .clickable { submitCommandAndCloseIfNeeded() },
                             shape = RoundedCornerShape(20.dp),
                             color = colors.surface,
                             border = BorderStroke(1.dp, colors.outline.copy(alpha = 0.22f))
